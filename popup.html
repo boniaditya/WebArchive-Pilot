@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>WebArchive Pilot</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      width: 300px;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      font-size: 13px;
+      color: #1d1d1f;
+      background: #f5f5f7;
+    }
+
+    /* ── Header ── */
+    header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 14px 16px 12px;
+      background: #fff;
+      border-bottom: 1px solid #e5e5ea;
+    }
+    header img { width: 32px; height: 32px; border-radius: 7px; }
+    header h1 { font-size: 15px; font-weight: 600; letter-spacing: -0.2px; }
+    header p  { font-size: 11px; color: #6e6e73; margin-top: 1px; }
+
+    /* ── Main area ── */
+    main { padding: 14px 16px; }
+
+    /* Save button */
+    #saveBtn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 7px;
+      width: 100%;
+      padding: 9px 0;
+      border: none;
+      border-radius: 10px;
+      background: #0071e3;
+      color: #fff;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.15s, opacity 0.15s;
+    }
+    #saveBtn:hover:not(:disabled) { background: #0077ed; }
+    #saveBtn:disabled { opacity: 0.55; cursor: default; }
+
+    /* Progress bar */
+    #progressWrap {
+      margin-top: 12px;
+      display: none;
+    }
+    #progressBar {
+      height: 4px;
+      background: #e5e5ea;
+      border-radius: 4px;
+      overflow: hidden;
+    }
+    #progressFill {
+      height: 100%;
+      width: 0%;
+      background: #0071e3;
+      border-radius: 4px;
+      transition: width 0.3s ease;
+    }
+    #statusText {
+      margin-top: 6px;
+      font-size: 11px;
+      color: #6e6e73;
+      text-align: center;
+      min-height: 14px;
+    }
+
+    /* Result card */
+    #resultCard {
+      display: none;
+      margin-top: 12px;
+      padding: 10px 12px;
+      background: #fff;
+      border-radius: 10px;
+      border: 1px solid #e5e5ea;
+    }
+    #resultCard .label {
+      font-size: 11px;
+      color: #6e6e73;
+      margin-bottom: 3px;
+    }
+    #resultCard .filename {
+      font-size: 12px;
+      font-weight: 500;
+      color: #1d1d1f;
+      word-break: break-all;
+    }
+    #resultCard .meta {
+      margin-top: 5px;
+      font-size: 11px;
+      color: #6e6e73;
+    }
+    #resultCard .success-icon {
+      display: inline-block;
+      margin-right: 4px;
+      color: #30d158;
+    }
+
+    /* Error state */
+    #errorCard {
+      display: none;
+      margin-top: 12px;
+      padding: 10px 12px;
+      background: #fff0f0;
+      border-radius: 10px;
+      border: 1px solid #ffd7d7;
+      font-size: 12px;
+      color: #c0392b;
+    }
+
+    /* Save all tabs button */
+    #saveAllBtn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 7px;
+      width: 100%;
+      margin-top: 8px;
+      padding: 9px 0;
+      border: 1.5px solid #0071e3;
+      border-radius: 10px;
+      background: #fff;
+      color: #0071e3;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.15s, opacity 0.15s;
+    }
+    #saveAllBtn:hover:not(:disabled) { background: #f0f7ff; }
+    #saveAllBtn:disabled { opacity: 0.55; cursor: default; }
+
+    /* All-tabs progress */
+    #allTabsProgress {
+      display: none;
+      margin-top: 12px;
+    }
+    #allTabsBar {
+      height: 4px;
+      background: #e5e5ea;
+      border-radius: 4px;
+      overflow: hidden;
+    }
+    #allTabsFill {
+      height: 100%;
+      width: 0%;
+      background: #0071e3;
+      border-radius: 4px;
+      transition: width 0.3s ease;
+    }
+    #allTabsStatus {
+      margin-top: 6px;
+      font-size: 11px;
+      color: #6e6e73;
+      text-align: center;
+      min-height: 14px;
+    }
+    #allTabsSummary {
+      display: none;
+      margin-top: 10px;
+      padding: 10px 12px;
+      background: #fff;
+      border-radius: 10px;
+      border: 1px solid #e5e5ea;
+      font-size: 12px;
+      color: #1d1d1f;
+    }
+    #allTabsSummary .label {
+      font-size: 11px;
+      color: #6e6e73;
+      margin-bottom: 3px;
+    }
+
+    /* Side-tabs row */
+    .side-tabs-row {
+      display: flex;
+      gap: 8px;
+      margin-top: 8px;
+    }
+    .side-tabs-row button {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 5px;
+      padding: 9px 0;
+      border: 1.5px solid #0071e3;
+      border-radius: 10px;
+      background: #fff;
+      color: #0071e3;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.15s, opacity 0.15s;
+    }
+    .side-tabs-row button:hover:not(:disabled) { background: #f0f7ff; }
+    .side-tabs-row button:disabled { opacity: 0.55; cursor: default; }
+
+    /* Open viewer button */
+    #openBtn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 7px;
+      width: 100%;
+      margin-top: 8px;
+      padding: 9px 0;
+      border: 1.5px solid #d1d1d6;
+      border-radius: 10px;
+      background: #fff;
+      color: #1d1d1f;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    #openBtn:hover { background: #f5f5f7; }
+
+    /* Footer */
+    footer {
+      padding: 8px 16px 10px;
+      font-size: 10px;
+      color: #aeaeb2;
+      text-align: center;
+      border-top: 1px solid #e5e5ea;
+      background: #fff;
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <img src="icons/icon48.png" alt="" />
+  <div>
+    <h1>WebArchive Pilot</h1>
+    <p>Save &amp; view .webarchive files in Chrome</p>
+  </div>
+</header>
+
+<main>
+  <button id="saveBtn">
+    <svg width="15" height="15" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M10 2v10m0 0-3-3m3 3 3-3M3 14v2a1 1 0 001 1h12a1 1 0 001-1v-2"
+            stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+    Save as .webarchive
+  </button>
+
+  <div id="progressWrap">
+    <div id="progressBar"><div id="progressFill"></div></div>
+    <div id="statusText"></div>
+  </div>
+
+  <div id="resultCard">
+    <div class="label"><span class="success-icon">✓</span>Saved successfully</div>
+    <div class="filename" id="resultFilename"></div>
+    <div class="meta" id="resultMeta"></div>
+  </div>
+
+  <div id="errorCard" id="errorCard"></div>
+
+  <button id="saveAllBtn">
+    <svg width="15" height="15" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M10 2v10m0 0-3-3m3 3 3-3M3 14v2a1 1 0 001 1h12a1 1 0 001-1v-2" stroke="#0071e3" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M6 6H4a1 1 0 00-1 1v8a1 1 0 001 1h12a1 1 0 001-1V7a1 1 0 00-1-1h-2" stroke="#0071e3" stroke-width="1.4" stroke-linecap="round" stroke-dasharray="2 2"/>
+    </svg>
+    Save all open tabs
+  </button>
+
+  <div id="allTabsProgress">
+    <div id="allTabsBar"><div id="allTabsFill"></div></div>
+    <div id="allTabsStatus"></div>
+  </div>
+  <div id="allTabsSummary">
+    <div class="label" id="allTabsSummaryLabel"></div>
+  </div>
+
+  <div class="side-tabs-row">
+    <button id="saveLeftBtn">
+      <svg width="13" height="13" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M12 4L6 10l6 6" stroke="#0071e3" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      Tabs on left
+    </button>
+    <button id="saveRightBtn">
+      Tabs on right
+      <svg width="13" height="13" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M8 4l6 6-6 6" stroke="#0071e3" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </button>
+  </div>
+
+  <button id="openBtn">
+    <svg width="15" height="15" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <rect x="2" y="4" width="16" height="13" rx="2" stroke="#1d1d1f" stroke-width="1.6"/>
+      <path d="M2 8h16" stroke="#1d1d1f" stroke-width="1.6" stroke-linecap="round"/>
+      <path d="M6 4V2M14 4V2" stroke="#1d1d1f" stroke-width="1.6" stroke-linecap="round"/>
+    </svg>
+    Open .webarchive file…
+  </button>
+</main>
+
+<footer>WebArchive Pilot · Save &amp; View .webarchive in Chrome</footer>
+
+<script src="popup.js"></script>
+</body>
+</html>
