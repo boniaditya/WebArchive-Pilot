@@ -227,6 +227,26 @@
     }
     #openBtn:hover { background: #f5f5f7; }
 
+    /* Downloads button */
+    #downloadsBtn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 7px;
+      width: 100%;
+      margin-top: 8px;
+      padding: 9px 0;
+      border: 1.5px solid #34a853;
+      border-radius: 10px;
+      background: #fff;
+      color: #1f6f35;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    #downloadsBtn:hover { background: #f3fbf5; }
+
     /* Footer */
     footer {
       padding: 8px 16px 10px;
@@ -308,6 +328,16 @@
       <path d="M6 4V2M14 4V2" stroke="#1d1d1f" stroke-width="1.6" stroke-linecap="round"/>
     </svg>
     Open .webarchive file…
+  </button>
+
+  <button id="downloadsBtn">
+    <svg width="15" height="15" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M4 5.5h12M4 10h12M4 14.5h12" stroke="#1f6f35" stroke-width="1.8" stroke-linecap="round"/>
+      <circle cx="5" cy="5.5" r="1" fill="#1f6f35"/>
+      <circle cx="5" cy="10" r="1" fill="#1f6f35"/>
+      <circle cx="5" cy="14.5" r="1" fill="#1f6f35"/>
+    </svg>
+    View downloaded archives
   </button>
 </main>
 

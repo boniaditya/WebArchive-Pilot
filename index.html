@@ -1,0 +1,1063 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>WebArchive Pilot | Save And View .webarchive Files In Chrome</title>
+  <meta
+    name="description"
+    content="WebArchive Pilot lets you save webpages as .webarchive files, reopen archived pages directly in Chrome, and manage a local archive library."
+  />
+  <link rel="icon" href="icons/icon128.png" type="image/png" />
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #eef4ff;
+      --bg-soft: #f9fbff;
+      --panel: rgba(255, 255, 255, 0.92);
+      --panel-strong: #ffffff;
+      --line: rgba(206, 219, 242, 0.95);
+      --line-strong: rgba(158, 181, 227, 0.95);
+      --text: #18223f;
+      --muted: #617295;
+      --accent: #2b66ff;
+      --accent-2: #14b6ff;
+      --accent-3: #6d7fff;
+      --success: #207246;
+      --success-bg: #edf8f1;
+      --shadow-xl: 0 28px 70px rgba(31, 57, 108, 0.14);
+      --shadow-lg: 0 16px 40px rgba(31, 57, 108, 0.10);
+      --radius-xl: 34px;
+      --radius-lg: 24px;
+      --radius-md: 18px;
+      --content: 1180px;
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    body {
+      min-height: 100vh;
+      font-family: "Avenir Next", "Trebuchet MS", "Segoe UI", sans-serif;
+      color: var(--text);
+      background:
+        radial-gradient(circle at 12% 12%, rgba(43, 102, 255, 0.11) 0%, transparent 24%),
+        radial-gradient(circle at 88% 8%, rgba(20, 182, 255, 0.12) 0%, transparent 23%),
+        linear-gradient(180deg, var(--bg-soft) 0%, var(--bg) 100%);
+      overflow-x: hidden;
+    }
+
+    body::before,
+    body::after {
+      content: "";
+      position: fixed;
+      border-radius: 999px;
+      pointer-events: none;
+      filter: blur(10px);
+      z-index: 0;
+    }
+
+    body::before {
+      width: 360px;
+      height: 360px;
+      left: -140px;
+      top: 180px;
+      background: rgba(43, 102, 255, 0.08);
+    }
+
+    body::after {
+      width: 320px;
+      height: 320px;
+      right: -120px;
+      top: 560px;
+      background: rgba(20, 182, 255, 0.10);
+    }
+
+    a {
+      color: inherit;
+      text-decoration: none;
+    }
+
+    img {
+      display: block;
+      max-width: 100%;
+    }
+
+    .page {
+      position: relative;
+      z-index: 1;
+    }
+
+    .container {
+      width: min(var(--content), calc(100% - 32px));
+      margin: 0 auto;
+    }
+
+    .topbar {
+      padding: 18px 0 6px;
+    }
+
+    .topbar-inner {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 18px;
+      padding: 14px 18px;
+      border: 1px solid rgba(210, 222, 244, 0.75);
+      background: rgba(255, 255, 255, 0.74);
+      border-radius: 999px;
+      backdrop-filter: blur(18px);
+      box-shadow: 0 10px 22px rgba(33, 57, 100, 0.05);
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      min-width: 0;
+    }
+
+    .brand-mark {
+      width: 48px;
+      height: 48px;
+      border-radius: 16px;
+      background: linear-gradient(135deg, var(--accent) 0%, var(--accent-2) 100%);
+      display: grid;
+      place-items: center;
+      box-shadow: 0 12px 26px rgba(43, 102, 255, 0.22);
+      flex-shrink: 0;
+    }
+
+    .brand-mark img {
+      width: 31px;
+      height: 31px;
+      object-fit: contain;
+    }
+
+    .brand-copy strong {
+      display: block;
+      font-size: 1rem;
+      letter-spacing: -0.02em;
+    }
+
+    .brand-copy span {
+      display: block;
+      margin-top: 2px;
+      color: var(--muted);
+      font-size: 0.9rem;
+    }
+
+    .nav {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
+    .nav-link {
+      color: var(--muted);
+      font-weight: 700;
+      font-size: 0.95rem;
+      padding: 10px 14px;
+      border-radius: 999px;
+      transition: color 0.14s ease, background 0.14s ease, transform 0.14s ease;
+    }
+
+    .nav-link:hover {
+      color: var(--text);
+      background: rgba(234, 243, 255, 0.82);
+      transform: translateY(-1px);
+    }
+
+    .nav-cta {
+      padding: 12px 18px;
+      border-radius: 999px;
+      font-weight: 800;
+      color: #fff;
+      background: linear-gradient(135deg, var(--accent) 0%, var(--accent-2) 100%);
+      box-shadow: 0 14px 28px rgba(43, 102, 255, 0.24);
+    }
+
+    .nav-cta:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 18px 34px rgba(43, 102, 255, 0.28);
+    }
+
+    .hero {
+      padding: 28px 0 54px;
+    }
+
+    .hero-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1.06fr) minmax(360px, 0.94fr);
+      gap: 28px;
+      align-items: center;
+    }
+
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 9px;
+      padding: 9px 14px;
+      border-radius: 999px;
+      border: 1px solid rgba(188, 210, 246, 0.95);
+      background: rgba(240, 246, 255, 0.88);
+      color: var(--accent);
+      font-weight: 800;
+      font-size: 0.92rem;
+      letter-spacing: 0.01em;
+    }
+
+    .eyebrow::before {
+      content: "";
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--accent) 0%, var(--accent-2) 100%);
+      box-shadow: 0 0 0 6px rgba(43, 102, 255, 0.10);
+    }
+
+    .hero-copy h1 {
+      margin-top: 18px;
+      font-family: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", serif;
+      font-size: clamp(3rem, 7vw, 5.8rem);
+      line-height: 0.96;
+      letter-spacing: -0.05em;
+      max-width: 10ch;
+      text-wrap: balance;
+    }
+
+    .hero-copy p {
+      margin-top: 20px;
+      max-width: 60ch;
+      font-size: 1.12rem;
+      line-height: 1.75;
+      color: var(--muted);
+    }
+
+    .hero-actions {
+      margin-top: 28px;
+      display: flex;
+      gap: 14px;
+      flex-wrap: wrap;
+    }
+
+    .button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      min-height: 54px;
+      padding: 0 22px;
+      border-radius: 999px;
+      border: 1px solid transparent;
+      font-size: 0.98rem;
+      font-weight: 800;
+      transition: transform 0.16s ease, box-shadow 0.16s ease, background 0.16s ease, border-color 0.16s ease;
+    }
+
+    .button:hover {
+      transform: translateY(-1px);
+    }
+
+    .button-primary {
+      color: #fff;
+      background: linear-gradient(135deg, var(--accent) 0%, var(--accent-2) 100%);
+      box-shadow: 0 16px 28px rgba(43, 102, 255, 0.24);
+    }
+
+    .button-secondary {
+      color: var(--text);
+      border-color: rgba(188, 205, 233, 0.95);
+      background: rgba(255, 255, 255, 0.84);
+    }
+
+    .hero-metrics {
+      margin-top: 26px;
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+      max-width: 640px;
+    }
+
+    .metric {
+      padding: 16px 16px 14px;
+      border-radius: 20px;
+      border: 1px solid rgba(210, 221, 240, 0.95);
+      background: rgba(255, 255, 255, 0.80);
+      box-shadow: 0 8px 22px rgba(27, 48, 91, 0.05);
+    }
+
+    .metric strong {
+      display: block;
+      font-size: 1.28rem;
+      letter-spacing: -0.04em;
+    }
+
+    .metric span {
+      display: block;
+      margin-top: 6px;
+      color: var(--muted);
+      font-size: 0.92rem;
+      line-height: 1.45;
+    }
+
+    .hero-visual {
+      position: relative;
+      min-height: 620px;
+      display: grid;
+      place-items: center;
+    }
+
+    .hero-visual::before {
+      content: "";
+      position: absolute;
+      inset: 56px 36px auto auto;
+      width: 280px;
+      height: 280px;
+      background: radial-gradient(circle, rgba(43, 102, 255, 0.22) 0%, rgba(43, 102, 255, 0.0) 68%);
+      filter: blur(16px);
+      border-radius: 50%;
+    }
+
+    .visual-stack {
+      position: relative;
+      width: min(100%, 530px);
+      padding: 34px;
+      border-radius: var(--radius-xl);
+      border: 1px solid rgba(186, 208, 241, 0.82);
+      background:
+        linear-gradient(145deg, rgba(255,255,255,0.95) 0%, rgba(244,248,255,0.95) 100%);
+      box-shadow: var(--shadow-xl);
+      overflow: hidden;
+    }
+
+    .visual-stack::after {
+      content: "";
+      position: absolute;
+      width: 240px;
+      height: 240px;
+      border-radius: 50%;
+      right: -70px;
+      top: -70px;
+      background: radial-gradient(circle, rgba(20, 182, 255, 0.18) 0%, transparent 72%);
+    }
+
+    .floating-chip {
+      position: absolute;
+      border-radius: 999px;
+      border: 1px solid rgba(193, 212, 244, 0.95);
+      background: rgba(255, 255, 255, 0.88);
+      color: var(--accent);
+      font-weight: 800;
+      font-size: 0.9rem;
+      padding: 11px 16px;
+      box-shadow: 0 10px 24px rgba(31, 57, 108, 0.08);
+      backdrop-filter: blur(12px);
+      animation: float 6.6s ease-in-out infinite;
+    }
+
+    .chip-top {
+      top: 18px;
+      right: 20px;
+    }
+
+    .chip-bottom {
+      left: 18px;
+      bottom: 22px;
+      animation-delay: 1.2s;
+    }
+
+    .preview-card {
+      position: relative;
+      z-index: 1;
+      border-radius: 30px;
+      padding: 18px;
+      background: rgba(255,255,255,0.92);
+      border: 1px solid rgba(212, 223, 242, 0.95);
+      box-shadow: 0 18px 34px rgba(27, 46, 88, 0.10);
+    }
+
+    .preview-frame {
+      overflow: hidden;
+      border-radius: 22px;
+      border: 1px solid rgba(215, 227, 244, 0.95);
+      background: #fff;
+    }
+
+    .preview-caption {
+      margin-top: 14px;
+      display: flex;
+      justify-content: space-between;
+      gap: 14px;
+      align-items: center;
+      color: var(--muted);
+      font-size: 0.93rem;
+    }
+
+    .preview-caption strong {
+      color: var(--text);
+      font-size: 1rem;
+      letter-spacing: -0.02em;
+    }
+
+    .section {
+      padding: 38px 0;
+    }
+
+    .section-header {
+      display: flex;
+      justify-content: space-between;
+      gap: 18px;
+      align-items: end;
+      margin-bottom: 22px;
+    }
+
+    .section-header h2 {
+      font-family: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", serif;
+      font-size: clamp(2rem, 4vw, 3.25rem);
+      line-height: 1.02;
+      letter-spacing: -0.04em;
+      max-width: 12ch;
+    }
+
+    .section-header p {
+      max-width: 52ch;
+      color: var(--muted);
+      line-height: 1.8;
+      font-size: 1rem;
+    }
+
+    .feature-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 16px;
+    }
+
+    .feature {
+      position: relative;
+      overflow: hidden;
+      padding: 22px 22px 20px;
+      border-radius: var(--radius-lg);
+      border: 1px solid rgba(207, 220, 242, 0.95);
+      background:
+        linear-gradient(180deg, rgba(255,255,255,0.96) 0%, rgba(246,249,255,0.96) 100%);
+      box-shadow: var(--shadow-lg);
+      min-height: 226px;
+    }
+
+    .feature::after {
+      content: "";
+      position: absolute;
+      width: 120px;
+      height: 120px;
+      right: -24px;
+      top: -24px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(43, 102, 255, 0.10) 0%, transparent 70%);
+    }
+
+    .feature-icon {
+      width: 48px;
+      height: 48px;
+      display: grid;
+      place-items: center;
+      border-radius: 16px;
+      background: linear-gradient(135deg, rgba(43, 102, 255, 0.14) 0%, rgba(20, 182, 255, 0.20) 100%);
+      color: var(--accent);
+      font-size: 1.35rem;
+      font-weight: 900;
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9);
+    }
+
+    .feature h3 {
+      margin-top: 18px;
+      font-size: 1.16rem;
+      line-height: 1.25;
+      letter-spacing: -0.02em;
+    }
+
+    .feature p {
+      margin-top: 12px;
+      color: var(--muted);
+      line-height: 1.75;
+      font-size: 0.96rem;
+    }
+
+    .workflow {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 16px;
+    }
+
+    .step {
+      position: relative;
+      padding: 24px 22px;
+      border-radius: var(--radius-lg);
+      background: rgba(255, 255, 255, 0.90);
+      border: 1px solid rgba(208, 221, 243, 0.96);
+      box-shadow: 0 14px 30px rgba(30, 57, 104, 0.08);
+    }
+
+    .step-number {
+      display: inline-flex;
+      width: 42px;
+      height: 42px;
+      align-items: center;
+      justify-content: center;
+      border-radius: 14px;
+      background: linear-gradient(135deg, var(--accent) 0%, var(--accent-3) 100%);
+      color: #fff;
+      font-size: 1rem;
+      font-weight: 900;
+      box-shadow: 0 12px 24px rgba(43, 102, 255, 0.22);
+    }
+
+    .step h3 {
+      margin-top: 16px;
+      font-size: 1.12rem;
+      letter-spacing: -0.02em;
+    }
+
+    .step p {
+      margin-top: 10px;
+      color: var(--muted);
+      line-height: 1.75;
+      font-size: 0.95rem;
+    }
+
+    .gallery {
+      display: grid;
+      grid-template-columns: 1.08fr 0.92fr;
+      gap: 18px;
+      align-items: start;
+    }
+
+    .gallery-main,
+    .gallery-column {
+      display: grid;
+      gap: 18px;
+    }
+
+    .shot {
+      border-radius: 28px;
+      overflow: hidden;
+      border: 1px solid rgba(209, 221, 241, 0.96);
+      background: rgba(255, 255, 255, 0.92);
+      box-shadow: var(--shadow-lg);
+    }
+
+    .shot img {
+      width: 100%;
+      height: auto;
+      display: block;
+    }
+
+    .shot figcaption {
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 16px 18px 18px;
+      align-items: baseline;
+    }
+
+    .shot figcaption strong {
+      font-size: 1rem;
+      letter-spacing: -0.02em;
+    }
+
+    .shot figcaption span {
+      color: var(--muted);
+      font-size: 0.93rem;
+      line-height: 1.55;
+      max-width: 32ch;
+    }
+
+    .privacy-panel {
+      display: grid;
+      grid-template-columns: 1.1fr 0.9fr;
+      gap: 18px;
+      align-items: stretch;
+    }
+
+    .privacy-card,
+    .permissions-card {
+      padding: 26px 24px;
+      border-radius: 28px;
+      border: 1px solid rgba(204, 219, 244, 0.96);
+      box-shadow: var(--shadow-lg);
+      background: rgba(255, 255, 255, 0.92);
+    }
+
+    .privacy-card h3,
+    .permissions-card h3 {
+      font-size: 1.28rem;
+      letter-spacing: -0.02em;
+    }
+
+    .privacy-card p,
+    .permissions-card p {
+      margin-top: 12px;
+      color: var(--muted);
+      line-height: 1.75;
+    }
+
+    .privacy-badge {
+      display: inline-flex;
+      margin-top: 16px;
+      padding: 7px 12px;
+      border-radius: 999px;
+      background: var(--success-bg);
+      color: var(--success);
+      font-size: 0.92rem;
+      font-weight: 800;
+    }
+
+    .permissions-list {
+      margin-top: 16px;
+      display: grid;
+      gap: 10px;
+    }
+
+    .permission-row {
+      display: flex;
+      justify-content: space-between;
+      gap: 14px;
+      align-items: start;
+      padding: 12px 14px;
+      border-radius: 18px;
+      background: rgba(242, 247, 255, 0.80);
+    }
+
+    .permission-row strong {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 0.9rem;
+      color: #2258d3;
+    }
+
+    .permission-row span {
+      color: var(--muted);
+      font-size: 0.92rem;
+      line-height: 1.55;
+      text-align: right;
+    }
+
+    .footer {
+      padding: 20px 0 34px;
+    }
+
+    .footer-card {
+      padding: 22px 24px;
+      border-radius: 28px;
+      background: rgba(255,255,255,0.84);
+      border: 1px solid rgba(211, 223, 244, 0.96);
+      box-shadow: 0 12px 26px rgba(27, 48, 91, 0.05);
+      display: flex;
+      justify-content: space-between;
+      gap: 18px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    .footer-card p {
+      color: var(--muted);
+      line-height: 1.75;
+      max-width: 64ch;
+    }
+
+    .footer-links {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    @keyframes float {
+      0%, 100% { transform: translateY(0px); }
+      50% { transform: translateY(-8px); }
+    }
+
+    @media (max-width: 1120px) {
+      .hero-grid,
+      .gallery,
+      .privacy-panel {
+        grid-template-columns: 1fr;
+      }
+
+      .hero-copy h1 {
+        max-width: none;
+      }
+
+      .hero-visual {
+        min-height: auto;
+      }
+
+      .section-header {
+        flex-direction: column;
+        align-items: start;
+      }
+
+      .section-header h2 {
+        max-width: none;
+      }
+    }
+
+    @media (max-width: 920px) {
+      .feature-grid,
+      .workflow,
+      .hero-metrics {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media (max-width: 720px) {
+      .topbar {
+        padding-top: 10px;
+      }
+
+      .topbar-inner,
+      .brand,
+      .nav {
+        align-items: start;
+      }
+
+      .topbar-inner {
+        flex-direction: column;
+        border-radius: 26px;
+      }
+
+      .nav {
+        justify-content: start;
+      }
+
+      .hero {
+        padding-top: 18px;
+      }
+
+      .hero-copy p {
+        font-size: 1rem;
+      }
+
+      .hero-actions {
+        flex-direction: column;
+        align-items: stretch;
+      }
+
+      .button {
+        width: 100%;
+      }
+
+      .visual-stack {
+        padding: 20px;
+      }
+
+      .shot figcaption,
+      .footer-card {
+        flex-direction: column;
+        align-items: start;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <header class="topbar">
+      <div class="container">
+        <div class="topbar-inner">
+          <a class="brand" href="#top">
+            <div class="brand-mark">
+              <img src="archive.png" alt="WebArchive Pilot icon" />
+            </div>
+            <div class="brand-copy">
+              <strong>WebArchive Pilot</strong>
+              <span>Save and reopen web archives inside Chrome</span>
+            </div>
+          </a>
+
+          <nav class="nav" aria-label="Primary">
+            <a class="nav-link" href="#features">Features</a>
+            <a class="nav-link" href="#workflow">How It Works</a>
+            <a class="nav-link" href="#screens">Screens</a>
+            <a class="nav-link" href="privacy-policy.html">Privacy Policy</a>
+            <a class="nav-cta" href="#download">See Archive Workflow</a>
+          </nav>
+        </div>
+      </div>
+    </header>
+
+    <main id="top">
+      <section class="hero">
+        <div class="container hero-grid">
+          <div class="hero-copy">
+            <div class="eyebrow">Chrome Extension · Local-First Archiving</div>
+            <h1>Save live webpages. Reopen them later. Stay inside Chrome.</h1>
+            <p>
+              WebArchive Pilot captures loaded pages as <code>.webarchive</code> files, helps you manage a
+              downloadable archive library, and includes a built-in viewer for reopening Safari-compatible
+              web archives directly in Chrome.
+            </p>
+
+            <div class="hero-actions">
+              <a class="button button-primary" href="#features">Explore Features</a>
+              <a class="button button-secondary" href="privacy-policy.html">Read Privacy Policy</a>
+            </div>
+
+            <div class="hero-metrics">
+              <div class="metric">
+                <strong>Single click</strong>
+                <span>Save the current page from the extension popup or context menu.</span>
+              </div>
+              <div class="metric">
+                <strong>Multi-tab</strong>
+                <span>Archive all tabs or only the tabs to the left or right.</span>
+              </div>
+              <div class="metric">
+                <strong>Viewer built in</strong>
+                <span>Open existing <code>.webarchive</code> files without leaving Chrome.</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="hero-visual">
+            <div class="visual-stack">
+              <div class="floating-chip chip-top">Safari-compatible viewer</div>
+              <div class="floating-chip chip-bottom">Download library included</div>
+
+              <div class="preview-card">
+                <div class="preview-frame">
+                  <img src="chrome-store-assets/screenshot-1-library.png" alt="WebArchive Pilot downloaded archives library view" />
+                </div>
+                <div class="preview-caption">
+                  <strong>Archive Library</strong>
+                  <span>View, reveal, and manage the web archives you’ve already captured.</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="features">
+        <div class="container">
+          <div class="section-header">
+            <h2>Built for everyday archiving, not just one-off exports.</h2>
+            <p>
+              WebArchive Pilot combines capture, download management, and playback in one focused extension,
+              so archived pages stay practical instead of getting lost in a folder.
+            </p>
+          </div>
+
+          <div class="feature-grid">
+            <article class="feature">
+              <div class="feature-icon">↗</div>
+              <h3>Save the active page as a <code>.webarchive</code></h3>
+              <p>
+                Capture the page you are currently viewing after it has loaded, then download it as a portable
+                archive file you can reopen later.
+              </p>
+            </article>
+
+            <article class="feature">
+              <div class="feature-icon">⇆</div>
+              <h3>Archive multiple tabs in one pass</h3>
+              <p>
+                Save all open tabs in the current window, or limit the action to tabs on the left or right of
+                the active tab when you are batching research.
+              </p>
+            </article>
+
+            <article class="feature">
+              <div class="feature-icon">⌘</div>
+              <h3>Right-click context menu support</h3>
+              <p>
+                Start archive actions from the browser context menu without opening the popup first, ideal for
+                quick page capture while you browse.
+              </p>
+            </article>
+
+            <article class="feature">
+              <div class="feature-icon">▣</div>
+              <h3>Open existing web archives in Chrome</h3>
+              <p>
+                Use the built-in viewer to reopen files saved by this extension or by Safari, including archived
+                HTML, CSS, images, fonts, and other captured resources.
+              </p>
+            </article>
+
+            <article class="feature">
+              <div class="feature-icon">☰</div>
+              <h3>Manage a downloaded archive library</h3>
+              <p>
+                Quickly browse completed downloads, reveal files in Finder, reopen them in the viewer, and
+                remove outdated captures when you no longer need them.
+              </p>
+            </article>
+
+            <article class="feature">
+              <div class="feature-icon">◎</div>
+              <h3>Local-first workflow</h3>
+              <p>
+                The extension is designed to work on your device using Chrome’s own capture and download
+                capabilities rather than relying on a separate web service.
+              </p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="workflow">
+        <div class="container">
+          <div class="section-header">
+            <h2>A clean three-step archive flow.</h2>
+            <p>
+              The experience is simple by design: capture what matters, keep it in a familiar file format, and
+              reopen it whenever you need it again.
+            </p>
+          </div>
+
+          <div class="workflow">
+            <article class="step">
+              <div class="step-number">1</div>
+              <h3>Capture the page you need</h3>
+              <p>
+                WebArchive Pilot uses Chrome’s page capture capabilities to snapshot the loaded tab and rebuild
+                it into a Safari-compatible <code>.webarchive</code> file.
+              </p>
+            </article>
+
+            <article class="step">
+              <div class="step-number">2</div>
+              <h3>Download a portable archive</h3>
+              <p>
+                The finished archive is saved through Chrome’s downloads flow, with a readable filename based on
+                the page title so you can keep an organized local archive.
+              </p>
+            </article>
+
+            <article class="step" id="download">
+              <div class="step-number">3</div>
+              <h3>Reopen and manage it later</h3>
+              <p>
+                Use the built-in viewer and archive library to find saved pages again, reopen them in Chrome,
+                and review older captures without switching tools.
+              </p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="screens">
+        <div class="container">
+          <div class="section-header">
+            <h2>The extension UI, at a glance.</h2>
+            <p>
+              These screens show the archive library, the local viewer, and the compact sidebar workflow used to
+              reopen recent files quickly.
+            </p>
+          </div>
+
+          <div class="gallery">
+            <div class="gallery-main">
+              <figure class="shot">
+                <img src="chrome-store-assets/screenshot-1-library.png" alt="Downloaded Web Archives screen in WebArchive Pilot" />
+                <figcaption>
+                  <strong>Downloaded Archive Library</strong>
+                  <span>Browse completed archive downloads, reveal files, remove old items, and reopen captures in a fresh Chrome tab.</span>
+                </figcaption>
+              </figure>
+
+              <figure class="shot">
+                <img src="chrome-store-assets/screenshot-2-viewer.png" alt="WebArchive Pilot viewer start screen" />
+                <figcaption>
+                  <strong>Built-In Viewer</strong>
+                  <span>Drag and drop a saved archive or browse from disk to reopen a <code>.webarchive</code> file directly inside Chrome.</span>
+                </figcaption>
+              </figure>
+            </div>
+
+            <div class="gallery-column">
+              <figure class="shot">
+                <img src="chrome-store-assets/screenshot-3-sidebar.png" alt="Sidebar archive library inside the WebArchive Pilot viewer" />
+                <figcaption>
+                  <strong>Quick Sidebar Access</strong>
+                  <span>The active archive expands for context while the rest stay compact for faster scanning.</span>
+                </figcaption>
+              </figure>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="container">
+          <div class="privacy-panel">
+            <article class="privacy-card">
+              <h3>Designed for private, practical archiving</h3>
+              <p>
+                WebArchive Pilot is meant to be a focused utility: capture the pages you choose, download the
+                results to your own device, and keep lightweight local metadata so your archive library stays
+                useful over time.
+              </p>
+              <p>
+                It is especially useful for research references, changing product pages, documentation snapshots,
+                authenticated pages that need to be preserved after load, and cross-browser workflows that still
+                depend on <code>.webarchive</code>.
+              </p>
+              <div class="privacy-badge">Local storage only for archive metadata and viewer state</div>
+            </article>
+
+            <article class="permissions-card">
+              <h3>Why the extension asks for permissions</h3>
+              <p>
+                Each permission exists to support a specific part of the archive workflow and viewer experience.
+              </p>
+
+              <div class="permissions-list">
+                <div class="permission-row">
+                  <strong>activeTab</strong>
+                  <span>Capture the page you explicitly choose to save.</span>
+                </div>
+                <div class="permission-row">
+                  <strong>downloads</strong>
+                  <span>Save archive files and manage downloaded items in the library.</span>
+                </div>
+                <div class="permission-row">
+                  <strong>pageCapture</strong>
+                  <span>Serialize the loaded page before conversion to <code>.webarchive</code>.</span>
+                </div>
+                <div class="permission-row">
+                  <strong>tabs</strong>
+                  <span>Support multi-tab save flows and archive naming metadata.</span>
+                </div>
+                <div class="permission-row">
+                  <strong>storage</strong>
+                  <span>Remember local archive metadata and viewer preferences.</span>
+                </div>
+              </div>
+            </article>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <div class="container">
+        <div class="footer-card">
+          <p>
+            WebArchive Pilot is a Chrome extension for capturing, managing, and reopening <code>.webarchive</code>
+            files in a local-first workflow. Read the privacy page for a full explanation of local metadata,
+            archive handling, and permission use.
+          </p>
+
+          <div class="footer-links">
+            <a class="button button-secondary" href="privacy-policy.html">Privacy Policy</a>
+            <a class="button button-primary" href="#top">Back To Top</a>
+          </div>
+        </div>
+      </div>
+    </footer>
+  </div>
+</body>
+</html>

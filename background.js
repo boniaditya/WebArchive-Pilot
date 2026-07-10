@@ -17,6 +17,8 @@
 import { encodeBplist } from './bplist.js';
 import { parseMHTML    } from './mhtml.js';
 
+const ARCHIVE_META_KEY = 'webarchive-pilot.archive-meta-by-download-id';
+
 // ─── Context menu ─────────────────────────────────────────────────────────────
 
 chrome.runtime.onInstalled.addListener(() => {
@@ -160,7 +162,7 @@ chrome.runtime.onConnect.addListener((port) => {
 /**
  * @param {number} tabId
  * @param {(type: string, payload?: object) => void} send  — progress callback
- * @returns {Promise<{ filename: string, kb: string, resourceCount: number }>}
+ * @returns {Promise<{ filename: string, kb: string, resourceCount: number, downloadId: number }>}
  */
 async function runArchive(tabId, send) {
 
@@ -212,10 +214,15 @@ async function runArchive(tabId, send) {
   send('status', { text: 'Starting download…', progress: 92 });
 
   const dataUrl = 'data:application/x-webarchive;base64,' + uint8ArrayToBase64(bytes);
-  await chrome.downloads.download({ url: dataUrl, filename, saveAs: false });
+  const downloadId = await chrome.downloads.download({ url: dataUrl, filename, saveAs: false });
+  await persistArchiveMeta(downloadId, {
+    pageUrl: tab.url || '',
+    pageTitle: title || hostname(tab.url || 'webpage'),
+    favIconUrl: tab.favIconUrl || '',
+  });
 
   const kb = (bytes.length / 1024).toFixed(1);
-  return { filename, kb, resourceCount: subParts.length };
+  return { filename, kb, resourceCount: subParts.length, downloadId };
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -276,4 +283,22 @@ function sanitise(name) {
 
 function hostname(url) {
   try { return new URL(url).hostname; } catch { return 'webpage'; }
+}
+
+async function persistArchiveMeta(downloadId, meta) {
+  if (!Number.isInteger(downloadId) || downloadId <= 0) return;
+
+  try {
+    const stored = await chrome.storage.local.get(ARCHIVE_META_KEY);
+    const allMeta = stored[ARCHIVE_META_KEY] || {};
+
+    allMeta[String(downloadId)] = {
+      ...meta,
+      savedAt: new Date().toISOString(),
+    };
+
+    await chrome.storage.local.set({ [ARCHIVE_META_KEY]: allMeta });
+  } catch (err) {
+    console.warn('[WebArchive Pilot] Failed to persist archive metadata:', err);
+  }
 }

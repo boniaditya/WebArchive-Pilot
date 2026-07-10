@@ -7,6 +7,7 @@
 
 const saveBtn          = document.getElementById('saveBtn');
 const openBtn          = document.getElementById('openBtn');
+const downloadsBtn     = document.getElementById('downloadsBtn');
 const progressWrap     = document.getElementById('progressWrap');
 const progressFill     = document.getElementById('progressFill');
 const statusText       = document.getElementById('statusText');
@@ -31,6 +32,11 @@ saveRightBtn.addEventListener('click', () => startArchiveAllTabs('right'));
 // Open the viewer in a new tab and close the popup
 openBtn.addEventListener('click', () => {
   chrome.tabs.create({ url: chrome.runtime.getURL('viewer.html') });
+  window.close();
+});
+
+downloadsBtn.addEventListener('click', () => {
+  chrome.tabs.create({ url: chrome.runtime.getURL('downloads.html') });
   window.close();
 });
 
