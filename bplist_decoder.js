@@ -19,10 +19,11 @@ export function decodeBplist(buffer) {
 }
 
 class BplistDecoder {
-  /** @param {ArrayBuffer} buffer */
+  /** @param {ArrayBuffer | ArrayBufferView} buffer */
   constructor(buffer) {
-    this.bytes   = new Uint8Array(buffer);
-    this.view    = new DataView(buffer);
+    const { bytes, view } = normaliseBinaryInput(buffer);
+    this.bytes   = bytes;
+    this.view    = view;
     this.offsets = [];
     this.refSize = 1;
     this.cache   = new Map(); // idx → decoded value (avoids re-decoding shared objects)
@@ -198,4 +199,22 @@ class BplistDecoder {
     return this.view.getUint32(offset, false) * 0x100000000 +
            this.view.getUint32(offset + 4, false);
   }
+}
+
+function normaliseBinaryInput(buffer) {
+  if (buffer instanceof ArrayBuffer) {
+    return {
+      bytes: new Uint8Array(buffer),
+      view: new DataView(buffer),
+    };
+  }
+
+  if (ArrayBuffer.isView(buffer)) {
+    return {
+      bytes: new Uint8Array(buffer.buffer, buffer.byteOffset, buffer.byteLength),
+      view: new DataView(buffer.buffer, buffer.byteOffset, buffer.byteLength),
+    };
+  }
+
+  throw new TypeError('Binary plist input must be an ArrayBuffer or typed array view.');
 }

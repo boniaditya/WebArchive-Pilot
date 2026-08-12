@@ -194,13 +194,17 @@
       align-items: center;
       justify-content: center;
       gap: 5px;
-      padding: 9px 0;
+      padding: 10px 8px;
+      min-height: 56px;
       border: 1.5px solid #0071e3;
       border-radius: 10px;
       background: #fff;
       color: #0071e3;
       font-size: 12px;
       font-weight: 600;
+      line-height: 1.25;
+      text-align: center;
+      white-space: normal;
       cursor: pointer;
       transition: background 0.15s, opacity 0.15s;
     }
@@ -264,7 +268,7 @@
   <img src="icons/icon48.png" alt="" />
   <div>
     <h1>WebArchive Pilot</h1>
-    <p>Save &amp; view .webarchive files in Chrome</p>
+    <p>Save, bundle, and view web archives in Chrome</p>
   </div>
 </header>
 
@@ -295,7 +299,7 @@
       <path d="M10 2v10m0 0-3-3m3 3 3-3M3 14v2a1 1 0 001 1h12a1 1 0 001-1v-2" stroke="#0071e3" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
       <path d="M6 6H4a1 1 0 00-1 1v8a1 1 0 001 1h12a1 1 0 001-1V7a1 1 0 00-1-1h-2" stroke="#0071e3" stroke-width="1.4" stroke-linecap="round" stroke-dasharray="2 2"/>
     </svg>
-    Save all open tabs
+    Save all tabs as .zarchive
   </button>
 
   <div id="allTabsProgress">
@@ -311,10 +315,10 @@
       <svg width="13" height="13" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
         <path d="M12 4L6 10l6 6" stroke="#0071e3" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
       </svg>
-      Tabs on left
+      Save tabs on left as .zarchive
     </button>
     <button id="saveRightBtn">
-      Tabs on right
+      Save tabs on right as .zarchive
       <svg width="13" height="13" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
         <path d="M8 4l6 6-6 6" stroke="#0071e3" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
       </svg>
@@ -327,7 +331,7 @@
       <path d="M2 8h16" stroke="#1d1d1f" stroke-width="1.6" stroke-linecap="round"/>
       <path d="M6 4V2M14 4V2" stroke="#1d1d1f" stroke-width="1.6" stroke-linecap="round"/>
     </svg>
-    Open .webarchive file…
+    Open .webarchive or .zarc…
   </button>
 
   <button id="downloadsBtn">
@@ -341,7 +345,7 @@
   </button>
 </main>
 
-<footer>WebArchive Pilot · Save &amp; View .webarchive in Chrome</footer>
+<footer>WebArchive Pilot · By Boni Aditya · Save, bundle, and view web archives in Chrome</footer>
 
 <script src="popup.js"></script>
 </body>

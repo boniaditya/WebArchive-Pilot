@@ -16,8 +16,10 @@
 
 import { encodeBplist } from './bplist.js';
 import { parseMHTML    } from './mhtml.js';
+import { createZarcBundle, ZARC_MIME_TYPE } from './zarc.js';
 
 const ARCHIVE_META_KEY = 'webarchive-pilot.archive-meta-by-download-id';
+const noop = () => {};
 
 // ─── Context menu ─────────────────────────────────────────────────────────────
 
@@ -38,11 +40,7 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
   if (info.menuItemId === 'save-all-webarchive') {
     notify('Saving all open tabs…', 'progress');
     chrome.tabs.query({}).then(async (allTabs) => {
-      const archivable = allTabs.filter(t => {
-        const u = t.url || '';
-        return !u.startsWith('chrome://') && !u.startsWith('chrome-extension://') &&
-               !u.startsWith('about:')    && !u.startsWith('edge://') && u !== '';
-      });
+      const archivable = allTabs.filter(isArchivableTab);
       let saved = 0, errors = 0;
       for (const t of archivable) {
         try { await runArchive(t.id, () => {}); saved++; }
@@ -57,8 +55,6 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
 
   // Silent send — no popup is open, so progress goes nowhere;
   // we show a system notification on completion / error instead.
-  const noop = () => {};
-
   notify('Saving page as .webarchive…', 'progress');
 
   runArchive(tab.id, noop)
@@ -87,51 +83,33 @@ chrome.runtime.onConnect.addListener((port) => {
         const activeIndex = activeTab ? activeTab.index : -1;
 
         const allTabs = await chrome.tabs.query({ currentWindow: true });
-        let candidates = allTabs.filter(t => {
-          const u = t.url || '';
-          return !u.startsWith('chrome://') && !u.startsWith('chrome-extension://') &&
-                 !u.startsWith('about:')    && !u.startsWith('edge://') && u !== '';
-        });
+        let candidates = allTabs.filter(isArchivableTab);
 
         if (direction === 'left')  candidates = candidates.filter(t => t.index < activeIndex);
         if (direction === 'right') candidates = candidates.filter(t => t.index > activeIndex);
 
         const archivable = candidates;
+        const shouldCreateBundle = direction === 'all' || direction === 'left' || direction === 'right';
+        const baseSkipped = allTabs.length - archivable.length;
 
-        const total   = archivable.length;
-        const skipped = allTabs.length - total;
-        let saved = 0;
-        let totalBytes = 0;
-        const errors = [];
-
-        const dirLabel = direction === 'left' ? 'left' : direction === 'right' ? 'right' : 'all';
-        send('all-status', { progress: 0, text: `Saving 0 of ${total} ${dirLabel} tabs…` });
-
-        for (let i = 0; i < archivable.length; i++) {
-          const tab = archivable[i];
-          const label = tab.title ? tab.title.substring(0, 40) : tab.url;
-          send('all-status', {
-            progress: Math.round((i / total) * 95),
-            text: `Saving ${i + 1} of ${total}: ${label}…`,
+        if (shouldCreateBundle) {
+          const result = await runArchiveBundle({
+            tabs: archivable,
+            direction,
+            activeTab,
+            skipped: baseSkipped,
+            send,
           });
+          send('all-done', result);
 
-          try {
-            const result = await runArchive(tab.id, () => {});
-            saved++;
-            totalBytes += parseFloat(result.kb) * 1024;
-          } catch (err) {
-            errors.push({ title: label, error: err.message });
+          if (result.errors > 0) {
+            notify(`Saved ${result.bundleFilename}. ${result.errors} tabs could not be bundled.`, 'error');
+          } else {
+            notify(`Saved ${result.bundleFilename} with ${result.saved} bundled tabs.`, 'success');
           }
+          return;
         }
 
-        const totalKb = (totalBytes / 1024).toFixed(1);
-        send('all-done', { saved, skipped: skipped + errors.length, totalKb });
-
-        if (errors.length > 0) {
-          notify(`Saved ${saved} tabs. ${errors.length} failed.`, 'error');
-        } else {
-          notify(`Saved all ${saved} tabs successfully.`, 'success');
-        }
       } catch (err) {
         send('all-error', { message: err.message });
       }
@@ -165,8 +143,34 @@ chrome.runtime.onConnect.addListener((port) => {
  * @returns {Promise<{ filename: string, kb: string, resourceCount: number, downloadId: number }>}
  */
 async function runArchive(tabId, send) {
+  const archive = await captureArchivePayload(tabId, send);
 
-  // ── Step 1: MHTML capture via Chrome's built-in page serialiser ────────────
+  send('status', { text: 'Starting download…', progress: 92 });
+
+  const downloadId = await downloadBytes({
+    bytes: archive.bytes,
+    mimeType: 'application/x-webarchive',
+    filename: archive.filename,
+  });
+  await persistArchiveMeta(downloadId, {
+    pageUrl: archive.pageUrl,
+    pageTitle: archive.pageTitle,
+    favIconUrl: archive.favIconUrl,
+  });
+
+  return {
+    filename: archive.filename,
+    kb: archive.kb,
+    resourceCount: archive.resourceCount,
+    downloadId,
+  };
+}
+
+async function captureArchivePayload(tabId, send = noop) {
+  const tab = await chrome.tabs.get(tabId);
+  const pageTitle = (tab.title || '').trim() || hostname(tab.url || 'webpage');
+  const filename = sanitise(pageTitle) + '.webarchive';
+
   send('status', { text: 'Capturing page (this may take a moment)…', progress: 5 });
 
   const mhtmlBlob = await new Promise((resolve, reject) => {
@@ -183,9 +187,8 @@ async function runArchive(tabId, send) {
 
   send('status', { text: 'Parsing captured resources…', progress: 35 });
 
-  // ── Step 2: Parse MHTML ────────────────────────────────────────────────────
   const mhtmlText = new TextDecoder('utf-8').decode(await mhtmlBlob.arrayBuffer());
-  const parts     = parseMHTML(mhtmlText);
+  const parts = parseMHTML(mhtmlText);
 
   if (!parts || parts.length === 0) {
     throw new Error('Failed to parse MHTML — no parts found.');
@@ -195,37 +198,162 @@ async function runArchive(tabId, send) {
 
   send('status', { text: `Building archive (${parts.length} resources)…`, progress: 60 });
 
-  // ── Step 3: Assemble the .webarchive plist tree ────────────────────────────
   const plistTree = {
     WebMainResource: makePlistResource(mainPart),
     WebSubresources: subParts.map(makePlistResource),
   };
 
-  // ── Step 4: Encode as binary plist ────────────────────────────────────────
   send('status', { text: 'Encoding binary plist…', progress: 78 });
   const bytes = encodeBplist(plistTree);
 
-  // ── Step 5: Determine filename ────────────────────────────────────────────
-  const tab      = await chrome.tabs.get(tabId);
-  const title    = (tab.title || '').trim();
-  const filename = sanitise(title || hostname(tab.url || 'webpage')) + '.webarchive';
-
-  // ── Step 6: Download ──────────────────────────────────────────────────────
-  send('status', { text: 'Starting download…', progress: 92 });
-
-  const dataUrl = 'data:application/x-webarchive;base64,' + uint8ArrayToBase64(bytes);
-  const downloadId = await chrome.downloads.download({ url: dataUrl, filename, saveAs: false });
-  await persistArchiveMeta(downloadId, {
+  return {
+    tabId,
+    filename,
+    bytes,
+    resourceCount: subParts.length,
+    kb: (bytes.length / 1024).toFixed(1),
     pageUrl: tab.url || '',
-    pageTitle: title || hostname(tab.url || 'webpage'),
+    pageTitle,
     favIconUrl: tab.favIconUrl || '',
+    savedAt: new Date().toISOString(),
+  };
+}
+
+async function runArchiveBundle({ tabs, direction, activeTab, skipped, send }) {
+  if (tabs.length === 0) {
+    throw new Error(getEmptyBundleMessage(direction));
+  }
+
+  const archives = [];
+  const errors = [];
+  const directionLabel = getBundleTargetLabel(direction, tabs.length);
+
+  send('all-status', {
+    progress: 0,
+    text: `Preparing ${tabs.length} ${directionLabel} for one .zarc bundle…`,
   });
 
-  const kb = (bytes.length / 1024).toFixed(1);
-  return { filename, kb, resourceCount: subParts.length, downloadId };
+  for (let index = 0; index < tabs.length; index += 1) {
+    const tab = tabs[index];
+    const label = (tab.title || tab.url || `Tab ${index + 1}`).trim();
+    send('all-status', {
+      progress: Math.round((index / tabs.length) * 82),
+      text: `Capturing ${index + 1} of ${tabs.length}: ${label}…`,
+    });
+
+    try {
+      const archive = await captureArchivePayload(tab.id, noop);
+      archives.push({
+        id: `tab-${tab.id}`,
+        filename: archive.filename,
+        bytes: archive.bytes,
+        pageTitle: archive.pageTitle,
+        pageUrl: archive.pageUrl,
+        favIconUrl: archive.favIconUrl,
+        savedAt: archive.savedAt,
+      });
+    } catch (err) {
+      errors.push({ tabId: tab.id, title: label, error: err.message });
+    }
+  }
+
+  if (archives.length === 0) {
+    throw new Error(errors[0]?.error || getEmptyBundleMessage(direction));
+  }
+
+  send('all-status', {
+    progress: 88,
+    text: 'Packaging bundled archives into .zarc…',
+  });
+
+  const { bytes, manifest } = createZarcBundle({
+    title: buildBundleTitle(direction, activeTab, archives.length),
+    archives,
+  });
+  const bundleFilename = buildBundleFilename(manifest.title, manifest.createdAt);
+
+  send('all-status', {
+    progress: 96,
+    text: `Downloading ${bundleFilename}…`,
+  });
+
+  const downloadId = await downloadBytes({
+    bytes,
+    mimeType: ZARC_MIME_TYPE,
+    filename: bundleFilename,
+  });
+
+  await persistArchiveMeta(downloadId, {
+    archiveType: 'zarc',
+    bundleTitle: manifest.title,
+    entryCount: manifest.archives.length,
+    pageTitle: manifest.title,
+    pageUrl: '',
+    favIconUrl: '',
+    savedAt: manifest.createdAt,
+  });
+
+  return {
+    saved: archives.length,
+    skipped: skipped + errors.length,
+    totalKb: (bytes.length / 1024).toFixed(1),
+    bundleFilename,
+    downloadId,
+    errors: errors.length,
+    isBundle: true,
+  };
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function isArchivableTab(tab) {
+  const url = tab?.url || '';
+  return (
+    url !== '' &&
+    !url.startsWith('chrome://') &&
+    !url.startsWith('chrome-extension://') &&
+    !url.startsWith('about:') &&
+    !url.startsWith('edge://')
+  );
+}
+
+async function downloadBytes({ bytes, mimeType, filename }) {
+  const dataUrl = `data:${mimeType};base64,` + uint8ArrayToBase64(bytes);
+  return chrome.downloads.download({ url: dataUrl, filename, saveAs: false });
+}
+
+function buildBundleTitle(direction, activeTab, count) {
+  const sideLabel = direction === 'left'
+    ? 'Tabs on the left'
+    : direction === 'right'
+      ? 'Tabs on the right'
+      : 'All open tabs';
+  const anchorTitle = (activeTab?.title || '').trim();
+  return direction !== 'all' && anchorTitle
+    ? `${sideLabel} of ${anchorTitle} (${count} tabs)`
+    : `${sideLabel} (${count} tabs)`;
+}
+
+function getBundleTargetLabel(direction, count) {
+  const noun = count === 1 ? 'tab' : 'tabs';
+  if (direction === 'left') return `${noun} on the left`;
+  if (direction === 'right') return `${noun} on the right`;
+  return `open ${noun}`;
+}
+
+function getEmptyBundleMessage(direction) {
+  if (direction === 'left') return 'No archivable tabs were found on the left.';
+  if (direction === 'right') return 'No archivable tabs were found on the right.';
+  return 'No archivable open tabs were found.';
+}
+
+function buildBundleFilename(title, createdAt) {
+  const stamp = new Date(createdAt || Date.now())
+    .toISOString()
+    .replace(/[-:]/g, '')
+    .replace(/\.\d{3}Z$/, 'Z');
+  return `${sanitise(title)}_${stamp}.zarc`;
+}
 
 function makePlistResource({ url, mimeType, charset, data }) {
   const res = {

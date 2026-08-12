@@ -120,8 +120,13 @@ async function startArchiveAllTabs(direction = 'all') {
       case 'all-done':
         allTabsFill.style.width = '100%';
         allTabsStatus.textContent = 'Done!';
-        allTabsSummaryLbl.textContent =
-          `✓ ${msg.saved} saved · ${msg.skipped} skipped · ${msg.totalKb} KB total`;
+        if (msg.isBundle) {
+          allTabsSummaryLbl.textContent =
+            `✓ ${msg.bundleFilename} · ${msg.saved} bundled · ${msg.skipped} skipped · ${msg.totalKb} KB`;
+        } else {
+          allTabsSummaryLbl.textContent =
+            `✓ ${msg.saved} saved · ${msg.skipped} skipped · ${msg.totalKb} KB total`;
+        }
         allTabsSummary.style.display = 'block';
         saveBtn.disabled       = false;
         saveAllBtn.disabled    = false;

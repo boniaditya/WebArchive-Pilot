@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "WebArchive Pilot",
-  "version": "1.1.0",
-  "description": "Save any webpage as a .webarchive file and open .webarchive files directly in Chrome.",
+  "version": "2.0.0",
+  "description": "Save webpages as .webarchive files, bundle many archives into .zarc, and reopen both formats directly in Chrome.",
   "permissions": ["activeTab", "downloads", "pageCapture", "tabs", "contextMenus", "notifications", "storage"],
   "host_permissions": ["file:///*"],
   "icons": {
