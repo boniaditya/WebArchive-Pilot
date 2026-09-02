@@ -26,6 +26,8 @@ import {
   isZarcName,
   isFileSchemeAccessAllowed,
   readDownloadedArchive,
+  recordOpenedArchive,
+  sanitiseFilenameStem,
 } from './archive-utils.js';
 import { parseZarcBundle } from './zarc.js';
 
@@ -53,6 +55,8 @@ const barUrl = document.getElementById('barUrl');
 const barMeta = document.getElementById('barMeta');
 const closeBtn = document.getElementById('closeBtn');
 const viewerFrame = document.getElementById('viewerFrame');
+const exportBtn = document.getElementById('exportBtn');
+const exportMenu = document.getElementById('exportMenu');
 
 const STEPS = ['read', 'decode', 'urls', 'patch', 'render'];
 const SIDEBAR_STATE_KEY = 'webarchive-pilot.viewer.sidebar-collapsed';
@@ -65,6 +69,7 @@ let activeBundle = null;
 let activeBundleEntryId = null;
 let requestedBundleEntryId = null;
 let isSidebarFileAccessAllowed = true;
+let currentExportArchive = null;
 
 // ── Event wiring ──────────────────────────────────────────────────────────────
 
@@ -101,6 +106,20 @@ closeBtn.addEventListener('click', () => {
   reset();
 });
 
+exportBtn.addEventListener('click', (event) => {
+  event.stopPropagation();
+  setExportMenuOpen(exportMenu.hidden);
+});
+
+exportMenu.addEventListener('click', async (event) => {
+  const option = event.target.closest('[data-export-format]');
+  if (!option) return;
+  setExportMenuOpen(false);
+  await exportCurrentArchive(option.dataset.exportFormat);
+});
+
+document.addEventListener('click', () => setExportMenuOpen(false));
+
 const initialParams = new URLSearchParams(window.location.search);
 const requestedDownloadId = Number(initialParams.get('downloadId'));
 requestedBundleEntryId = initialParams.get('entry') || null;
@@ -129,6 +148,15 @@ async function openFile(file) {
   syncViewerUrl();
   cleanup();
   showLoading();
+
+  // File pickers do not grant persistent filesystem access, so only keep
+  // lightweight history metadata for this locally opened archive.
+  recordOpenedArchive({
+    filename: file.name,
+    sizeBytes: file.size,
+    lastModified: file.lastModified,
+    archiveType: isZarcName(file.name) ? 'zarc' : 'webarchive',
+  });
 
   try {
     stepActive('read');
@@ -294,6 +322,14 @@ async function openArchive({ buffer, filename, displayName, pageUrlHint = '', si
   const patched = patchHtml(htmlText, pageUrl, urlMap);
   stepDone('patch');
 
+  currentExportArchive = {
+    filename,
+    pageUrl,
+    originalBytes: buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer),
+    mainResource: mainRes,
+    subResources: subRes,
+  };
+
   // ── 5. Render ───────────────────────────────────────────────────────────
   stepActive('render');
   const htmlBlob = new Blob([patched], { type: 'text/html; charset=UTF-8' });
@@ -449,6 +485,207 @@ function patchCssUrls(css, baseUrl, urlMap) {
   });
 }
 
+// ── Local archive exports ────────────────────────────────────────────────────
+
+function setExportMenuOpen(open) {
+  exportMenu.hidden = !open;
+  exportBtn.setAttribute('aria-expanded', String(open));
+}
+
+async function exportCurrentArchive(format) {
+  if (!currentExportArchive) return;
+
+  try {
+    const { filename, pageUrl, originalBytes, mainResource, subResources } = currentExportArchive;
+    const stem = sanitiseFilenameStem(filename.replace(/\.webarchive$/i, ''), 'webarchive-export');
+    // Open this synchronously from the button click so Chrome does not treat it as a popup.
+    const printWindow = format === 'pdf' ? window.open('', '_blank') : null;
+    if (format === 'pdf' && !printWindow) {
+      throw new Error('Chrome blocked the print window. Allow popups for this extension and try again.');
+    }
+    let contents;
+    let mime;
+    let extension;
+
+    if (format === 'webarchive') {
+      contents = originalBytes;
+      mime = 'application/x-webarchive';
+      extension = 'webarchive';
+    } else if (format === 'pdf') {
+      openPdfPrintWindow(printWindow, createPrintHtml(mainResource, subResources, pageUrl), stem);
+      return;
+    } else if (format === 'mhtml') {
+      contents = createMhtml(mainResource, subResources, pageUrl);
+      mime = 'multipart/related';
+      extension = 'mhtml';
+    } else if (format === 'html') {
+      contents = createStandaloneHtml(mainResource, subResources, pageUrl);
+      mime = 'text/html;charset=UTF-8';
+      extension = 'html';
+    } else if (format === 'txt') {
+      contents = createPlainText(mainResource);
+      mime = 'text/plain;charset=UTF-8';
+      extension = 'txt';
+    } else {
+      throw new Error('That export format is not supported.');
+    }
+
+    const blobUrl = URL.createObjectURL(new Blob([contents], { type: mime }));
+    try {
+      await chrome.downloads.download({
+        url: blobUrl,
+        filename: `${stem}.${extension}`,
+        saveAs: true,
+      });
+    } finally {
+      window.setTimeout(() => URL.revokeObjectURL(blobUrl), 60_000);
+    }
+  } catch (error) {
+    console.error('[WebArchive Viewer] Export failed:', error);
+    showDropError(`Could not export this archive: ${error.message}`);
+  }
+}
+
+function createStandaloneHtml(mainResource, subResources, pageUrl) {
+  const dataUrlMap = buildDataUrlMap(subResources);
+  const charset = mainResource.WebResourceTextEncodingName || 'UTF-8';
+  const html = new TextDecoder(charset).decode(mainResource.WebResourceData);
+  return patchHtml(html, pageUrl, dataUrlMap);
+}
+
+function buildDataUrlMap(subResources) {
+  const map = new Map();
+  const cssEntries = [];
+
+  for (const resource of subResources) {
+    const url = resource.WebResourceURL;
+    const data = resource.WebResourceData;
+    const mime = resource.WebResourceMIMEType || 'application/octet-stream';
+    if (!url || !(data instanceof Uint8Array)) continue;
+    if (mime.toLowerCase() === 'text/css') {
+      cssEntries.push({ url, data, mime });
+    } else {
+      map.set(url, toDataUrl(data, mime));
+    }
+  }
+
+  for (const resource of cssEntries) {
+    const css = new TextDecoder('UTF-8').decode(resource.data);
+    const patchedCss = patchCssUrls(css, resource.url, map);
+    map.set(resource.url, toDataUrl(new TextEncoder().encode(patchedCss), resource.mime));
+  }
+  return map;
+}
+
+function toDataUrl(bytes, mime) {
+  let binary = '';
+  const chunkSize = 0x8000;
+  for (let offset = 0; offset < bytes.length; offset += chunkSize) {
+    binary += String.fromCharCode(...bytes.subarray(offset, offset + chunkSize));
+  }
+  return `data:${mime};base64,${btoa(binary)}`;
+}
+
+function createMhtml(mainResource, subResources, pageUrl) {
+  const boundary = `----=_WebArchivePilot_${crypto.randomUUID().replaceAll('-', '')}`;
+  const rootLocation = pageUrl || 'index.html';
+  const parts = [createMhtmlPart({
+    location: rootLocation,
+    mime: mainResource.WebResourceMIMEType || 'text/html',
+    charset: mainResource.WebResourceTextEncodingName || 'UTF-8',
+    data: mainResource.WebResourceData,
+  }, boundary)];
+
+  for (const resource of subResources) {
+    if (!resource.WebResourceURL || !(resource.WebResourceData instanceof Uint8Array)) continue;
+    parts.push(createMhtmlPart({
+      location: resource.WebResourceURL,
+      mime: resource.WebResourceMIMEType || 'application/octet-stream',
+      charset: resource.WebResourceTextEncodingName || '',
+      data: resource.WebResourceData,
+    }, boundary));
+  }
+
+  return [
+    'From: <Saved by WebArchive Pilot>',
+    'MIME-Version: 1.0',
+    `Content-Type: multipart/related; type="text/html"; boundary="${boundary}"`,
+    '',
+    'This is a multi-part message in MIME format.',
+    ...parts,
+    `--${boundary}--`,
+    '',
+  ].join('\r\n');
+}
+
+function createMhtmlPart({ location, mime, charset, data }, boundary) {
+  const contentType = charset ? `${mime}; charset="${charset}"` : mime;
+  return [
+    `--${boundary}`,
+    `Content-Type: ${contentType}`,
+    'Content-Transfer-Encoding: base64',
+    `Content-Location: ${String(location).replace(/[\r\n]/g, '')}`,
+    '',
+    base64Lines(data),
+  ].join('\r\n');
+}
+
+function base64Lines(bytes) {
+  const dataUrl = toDataUrl(bytes, 'application/octet-stream');
+  const encoded = dataUrl.slice(dataUrl.indexOf(',') + 1);
+  return encoded.match(/.{1,76}/g)?.join('\r\n') || '';
+}
+
+function createPlainText(mainResource) {
+  const charset = mainResource.WebResourceTextEncodingName || 'UTF-8';
+  const html = new TextDecoder(charset).decode(mainResource.WebResourceData);
+  const doc = new DOMParser().parseFromString(html, 'text/html');
+  return `${doc.title ? `${doc.title}\n\n` : ''}${doc.body?.innerText || doc.documentElement.textContent || ''}`.trim() + '\n';
+}
+
+function createPrintHtml(mainResource, subResources, pageUrl) {
+  const html = createStandaloneHtml(mainResource, subResources, pageUrl);
+  const doc = new DOMParser().parseFromString(html, 'text/html');
+
+  // Archived scripts and auto-refresh directives are not useful on paper and
+  // should never execute in the temporary print preview.
+  doc.querySelectorAll('script, meta[http-equiv="refresh"]').forEach((element) => element.remove());
+  doc.querySelectorAll('*').forEach((element) => {
+    for (const attribute of [...element.attributes]) {
+      if (attribute.name.toLowerCase().startsWith('on')) element.removeAttribute(attribute.name);
+    }
+  });
+
+  const printStyle = doc.createElement('style');
+  printStyle.textContent = `
+    @page { margin: 12mm; }
+    html { background: #fff !important; }
+    body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  `;
+  doc.head.append(printStyle);
+  return '<!DOCTYPE html>\n' + doc.documentElement.outerHTML;
+}
+
+function openPdfPrintWindow(printWindow, printableHtml, title) {
+  printWindow.document.open();
+  printWindow.document.write('<!DOCTYPE html><title>Preparing PDF export</title><style>html,body,iframe{width:100%;height:100%;margin:0;border:0;background:#fff}</style>');
+  printWindow.document.close();
+
+  const frame = printWindow.document.createElement('iframe');
+  // Scripts remain disabled; allow-modals permits the user-initiated print dialog.
+  frame.setAttribute('sandbox', 'allow-same-origin allow-modals');
+  frame.title = title;
+  frame.srcdoc = printableHtml;
+  frame.addEventListener('load', () => {
+    printWindow.document.title = `${title}.pdf`;
+    window.setTimeout(() => {
+      frame.contentWindow?.focus();
+      frame.contentWindow?.print();
+    }, 250);
+  }, { once: true });
+  printWindow.document.body.append(frame);
+}
+
 // ── UI state helpers ──────────────────────────────────────────────────────────
 
 function showLoading() {
@@ -506,6 +743,8 @@ function reset() {
   activeBundle = null;
   activeBundleEntryId = null;
   requestedBundleEntryId = null;
+  currentExportArchive = null;
+  setExportMenuOpen(false);
   updateSidebarSelection();
   syncViewerUrl();
   cleanup();
@@ -522,6 +761,8 @@ function reset() {
 function hideCurrentPreview() {
   activeBundleEntryId = null;
   requestedBundleEntryId = null;
+  currentExportArchive = null;
+  setExportMenuOpen(false);
   updateSidebarSelection();
   syncViewerUrl();
   cleanup();

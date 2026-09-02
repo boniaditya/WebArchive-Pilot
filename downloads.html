@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>WebArchive Pilot – Downloads</title>
+  <title>WebArchive Pilot – Archive History</title>
   <link rel="icon" href="icons/icon128.png" type="image/png" />
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -241,14 +241,66 @@
 
     .archive-actions {
       flex-shrink: 0;
-      display: flex;
-      flex-direction: column;
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
       gap: 8px;
-      min-width: 188px;
+      min-width: 360px;
+    }
+
+    .archive-export {
+      position: relative;
+      min-width: 0;
+    }
+
+    .archive-export-menu {
+      position: absolute;
+      right: 0;
+      top: calc(100% + 6px);
+      z-index: 10;
+      width: 214px;
+      padding: 6px;
+      background: #fff;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      box-shadow: 0 14px 28px rgba(25, 35, 53, 0.16);
+    }
+
+    .archive-export-menu[hidden] { display: none; }
+
+    .archive-export-option {
+      width: 100%;
+      padding: 8px 10px;
+      border: 0;
+      border-radius: 8px;
+      background: transparent;
+      color: var(--text);
+      text-align: left;
+      font: inherit;
+      font-size: 12px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 9px;
+    }
+
+    .archive-export-menu .archive-export-option:hover { background: #eef5ff; color: #075cbb; }
+
+    .archive-export-option-icon {
+      width: 16px;
+      text-align: center;
+      flex-shrink: 0;
+      font-size: 14px;
+    }
+
+    .archive-export-caret {
+      margin-left: auto;
+      font-size: 12px;
+      line-height: 1;
     }
 
     .archive-picker {
       display: inline-flex;
+      grid-column: 1 / -1;
       align-items: center;
       gap: 8px;
       padding: 4px 2px 8px;
@@ -270,8 +322,9 @@
       line-height: 1.3;
     }
 
-    .archive-actions button,
-    .archive-actions a {
+    .archive-actions > button,
+    .archive-actions > a,
+    .archive-export > button {
       border: 1px solid var(--line);
       background: var(--card);
       color: var(--text);
@@ -287,20 +340,22 @@
       align-items: center;
       justify-content: center;
       gap: 8px;
+      width: 100%;
     }
 
-    .archive-actions a {
+    .archive-actions > a {
       background: #eef6ff;
       border-color: #bdd7ff;
       color: #0857c5;
     }
 
-    .archive-actions button:hover,
-    .archive-actions a:hover {
+    .archive-actions > button:hover,
+    .archive-actions > a:hover,
+    .archive-export > button:hover {
       background: #f6f8fb;
     }
 
-    .archive-actions a:hover {
+    .archive-actions > a:hover {
       background: #e8f2ff;
     }
 
@@ -371,13 +426,16 @@
 
       .archive-actions {
         width: 100%;
-        flex-direction: row;
+        min-width: 0;
       }
 
-      .archive-actions button,
-      .archive-actions a {
-        flex: 1;
+      .archive-actions > button,
+      .archive-actions > a,
+      .archive-export {
+        min-width: 0;
       }
+
+      .archive-export > button { width: 100%; }
     }
   </style>
 </head>
@@ -385,8 +443,8 @@
   <div class="shell">
     <section class="hero">
       <div>
-        <h1>Downloaded Web Archives</h1>
-        <p>Browse every completed <code>.webarchive</code> or <code>.zarc</code> download Chrome knows about. Open single archives directly, or bundle many saved <code>.webarchive</code> files into one tabbed <code>.zarc</code> file.</p>
+        <h1>Archive History</h1>
+        <p>Browse downloaded archives and files opened locally in WebArchive Pilot. Downloaded <code>.webarchive</code> files can be reopened, exported, or packaged into a tabbed <code>.zarc</code> bundle.</p>
       </div>
       <div class="actions">
         <button id="createBundleBtn" class="primary" type="button" disabled>Create .zarc bundle</button>
@@ -402,7 +460,7 @@
 
     <section class="summary">
       <div>
-        <h2>Your archive library</h2>
+        <h2>Your archive history</h2>
         <p id="summaryText">Loading downloaded archives…</p>
         <p class="bundle-hint" id="bundleHint">Select downloaded <code>.webarchive</code> files to package them into one tabbed <code>.zarc</code> bundle.</p>
       </div>

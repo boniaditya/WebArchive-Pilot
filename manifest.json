@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "WebArchive Pilot",
-  "version": "2.0.0",
-  "description": "Save webpages as .webarchive files, bundle many archives into .zarc, and reopen both formats directly in Chrome.",
+  "version": "10.0.0",
+  "description": "Save webpages as .webarchive files, bundle them in .zarc, reopen them in Chrome, and export as PDF, MHTML, HTML, or text.",
   "permissions": ["activeTab", "downloads", "pageCapture", "tabs", "contextMenus", "notifications", "storage"],
   "host_permissions": ["file:///*"],
   "icons": {

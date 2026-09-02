@@ -31,23 +31,30 @@ chrome.runtime.onInstalled.addListener(() => {
   });
   chrome.contextMenus.create({
     id:       'save-all-webarchive',
-    title:    'Save all open tabs as .webarchive',
+    title:    'Save all open tabs as .zarc bundle',
+    contexts: ['page', 'frame'],
+  });
+  chrome.contextMenus.create({
+    id:       'save-left-webarchive',
+    title:    'Save tabs on the left as .zarc bundle',
+    contexts: ['page', 'frame'],
+  });
+  chrome.contextMenus.create({
+    id:       'save-right-webarchive',
+    title:    'Save tabs on the right as .zarc bundle',
     contexts: ['page', 'frame'],
   });
 });
 
 chrome.contextMenus.onClicked.addListener((info, tab) => {
-  if (info.menuItemId === 'save-all-webarchive') {
-    notify('Saving all open tabs…', 'progress');
-    chrome.tabs.query({}).then(async (allTabs) => {
-      const archivable = allTabs.filter(isArchivableTab);
-      let saved = 0, errors = 0;
-      for (const t of archivable) {
-        try { await runArchive(t.id, () => {}); saved++; }
-        catch { errors++; }
-      }
-      notify(`Saved ${saved} tabs${errors ? `, ${errors} failed` : ''}.`, errors ? 'error' : 'success');
-    });
+  const bundleDirections = {
+    'save-all-webarchive': 'all',
+    'save-left-webarchive': 'left',
+    'save-right-webarchive': 'right',
+  };
+  const direction = bundleDirections[info.menuItemId];
+  if (direction && tab?.id !== undefined) {
+    runContextMenuBundle(tab, direction);
     return;
   }
 
@@ -65,6 +72,38 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
       notify(`Failed to save archive:\n${err.message}`, 'error');
     });
 });
+
+async function runContextMenuBundle(activeTab, direction) {
+  const label = direction === 'left'
+    ? 'tabs on the left'
+    : direction === 'right'
+      ? 'tabs on the right'
+      : 'all open tabs';
+  notify(`Saving ${label} as one .zarc bundle…`, 'progress');
+
+  try {
+    const allTabs = await chrome.tabs.query({ windowId: activeTab.windowId });
+    let archivable = allTabs.filter(isArchivableTab);
+    if (direction === 'left') archivable = archivable.filter((item) => item.index < activeTab.index);
+    if (direction === 'right') archivable = archivable.filter((item) => item.index > activeTab.index);
+
+    const result = await runArchiveBundle({
+      tabs: archivable,
+      direction,
+      activeTab,
+      skipped: allTabs.length - allTabs.filter(isArchivableTab).length,
+      send: noop,
+    });
+
+    if (result.errors > 0) {
+      notify(`Saved ${result.bundleFilename}. ${result.errors} tabs could not be bundled.`, 'error');
+    } else {
+      notify(`Saved ${result.bundleFilename} with ${result.saved} bundled tabs.`, 'success');
+    }
+  } catch (error) {
+    notify(`Failed to save ${label}:\n${error.message}`, 'error');
+  }
+}
 
 // ─── Port-based messaging (popup) ─────────────────────────────────────────────
 
