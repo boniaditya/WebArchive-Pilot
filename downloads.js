@@ -16,6 +16,7 @@ import {
 } from './archive-utils.js';
 import { createZarcBundle, ZARC_MIME_TYPE } from './zarc.js';
 import { exportWebArchive } from './archive-export.js';
+import { decodeBplist } from './bplist_decoder.js';
 
 const createBundleBtn = document.getElementById('createBundleBtn');
 const refreshBtn   = document.getElementById('refreshBtn');
@@ -26,15 +27,20 @@ const bundleHint   = document.getElementById('bundleHint');
 const errorState   = document.getElementById('errorState');
 const emptyState   = document.getElementById('emptyState');
 const archiveList  = document.getElementById('archiveList');
+const historySearch = document.getElementById('historySearch');
 
 let archiveMetaById = {};
 let listedArchives = [];
 let openedArchiveHistory = [];
 let isCreatingBundle = false;
+let historyItems = [];
+const archiveContentById = new Map();
+let searchRequest = 0;
 const selectedArchiveIds = new Set();
 
 createBundleBtn.addEventListener('click', createBundleFromSelection);
 refreshBtn.addEventListener('click', loadArchives);
+historySearch.addEventListener('input', renderHistoryItems);
 manualOpenBtn.addEventListener('click', () => {
   chrome.tabs.create({ url: chrome.runtime.getURL('viewer.html') });
 });
@@ -55,7 +61,8 @@ async function loadArchives() {
       chrome.downloads.search({
         state: 'complete',
         orderBy: ['-startTime'],
-        limit: 500,
+        // No result cap: the search field should cover the complete archive history.
+        limit: 0,
       }),
       loadArchiveMeta(),
       loadOpenedArchiveHistory(),
@@ -79,21 +86,89 @@ async function loadArchives() {
       return;
     }
 
-    const historyItems = [
+    historyItems = [
       ...listedArchives.map((item) => ({ type: 'download', value: item, timestamp: item.startTime })),
       ...localHistory.map((entry) => ({ type: 'local', value: entry, timestamp: entry.lastOpened })),
     ].sort((a, b) => new Date(b.timestamp || 0) - new Date(a.timestamp || 0));
-
-    for (const entry of historyItems) {
-      archiveList.appendChild(entry.type === 'download'
-        ? makeArchiveCard(entry.value)
-        : makeHistoryCard(entry.value));
-    }
+    renderHistoryItems();
   } catch (err) {
     errorState.hidden = false;
     errorState.textContent = 'Could not load your download history: ' + err.message;
     summaryText.textContent = 'Download history is unavailable right now.';
   }
+}
+
+async function renderHistoryItems() {
+  archiveList.replaceChildren();
+  const query = historySearch.value.trim().toLocaleLowerCase();
+  const requestId = ++searchRequest;
+  if (query && historyItems.some((entry) => entry.type === 'download' && !archiveContentById.has(String(entry.value.id)))) {
+    summaryText.textContent = 'Searching archive contents…';
+    await indexArchiveContents();
+    if (requestId !== searchRequest) return;
+  }
+  const filtered = historyItems.filter((entry) => archiveSearchText(entry).includes(query));
+  for (const entry of filtered) {
+    archiveList.appendChild(entry.type === 'download' ? makeArchiveCard(entry.value) : makeHistoryCard(entry.value));
+  }
+  if (historyItems.length > 0 && filtered.length === 0) {
+    const noMatches = document.createElement('section');
+    noMatches.className = 'empty';
+    noMatches.textContent = `No archives match “${historySearch.value.trim()}”.`;
+    archiveList.appendChild(noMatches);
+  }
+  if (historyItems.length > 0) {
+    const suffix = query ? ` Showing ${filtered.length} of ${historyItems.length} matching archives.` : '';
+    summaryText.textContent = `${summaryText.textContent.split('.')[0]}.${suffix}`;
+  }
+}
+
+async function indexArchiveContents() {
+  const pending = historyItems.filter((entry) => entry.type === 'download' && !archiveContentById.has(String(entry.value.id)));
+  for (const entry of pending) {
+    try {
+      const bytes = await readDownloadedArchive(entry.value);
+      archiveContentById.set(String(entry.value.id), extractArchiveText(bytes));
+    } catch (_) {
+      archiveContentById.set(String(entry.value.id), '');
+    }
+  }
+}
+
+function extractArchiveText(bytes) {
+  try {
+    const archive = decodeBplist(bytes);
+    const values = [];
+    collectTextValues(archive, values, new Set());
+    return values.join(' ').toLocaleLowerCase();
+  } catch (_) {
+    // Keep search useful for malformed/unknown bundles by scanning readable bytes.
+    return new TextDecoder().decode(bytes).replace(/[\x00-\x08\x0b\x0c\x0e-\x1f]/g, ' ').toLocaleLowerCase();
+  }
+}
+
+function collectTextValues(value, output, seen) {
+  if (typeof value === 'string') { output.push(value); return; }
+  if (value instanceof Uint8Array || value instanceof ArrayBuffer) {
+    const bytes = value instanceof Uint8Array ? value : new Uint8Array(value);
+    output.push(new TextDecoder().decode(bytes));
+    return;
+  }
+  if (!value || typeof value !== 'object' || seen.has(value)) return;
+  seen.add(value);
+  if (Array.isArray(value)) value.forEach((item) => collectTextValues(item, output, seen));
+  else Object.values(value).forEach((item) => collectTextValues(item, output, seen));
+}
+
+function archiveSearchText(entry) {
+  if (entry.type === 'local') {
+    return [entry.value.filename, entry.value.archiveType, entry.value.lastOpened].filter(Boolean).join(' ').toLocaleLowerCase();
+  }
+  const item = entry.value;
+  const meta = archiveMetaById[String(item.id)] || {};
+  return [meta.bundleTitle, meta.pageTitle, meta.pageUrl, meta.archiveUrl, item.filename, item.url, item.referrer, item.startTime,
+    archiveContentById.get(String(item.id))]
+    .filter(Boolean).join(' ').toLocaleLowerCase();
 }
 
 function makeHistoryCard(entry) {

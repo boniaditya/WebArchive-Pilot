@@ -8,6 +8,9 @@
 const saveBtn          = document.getElementById('saveBtn');
 const openBtn          = document.getElementById('openBtn');
 const downloadsBtn     = document.getElementById('downloadsBtn');
+const databaseBtn      = document.getElementById('databaseBtn');
+const websiteBtn       = document.getElementById('websiteBtn');
+const settingsBtn      = document.getElementById('settingsBtn');
 const progressWrap     = document.getElementById('progressWrap');
 const progressFill     = document.getElementById('progressFill');
 const statusText       = document.getElementById('statusText');
@@ -37,6 +40,18 @@ openBtn.addEventListener('click', () => {
 
 downloadsBtn.addEventListener('click', () => {
   chrome.tabs.create({ url: chrome.runtime.getURL('downloads.html') });
+  window.close();
+});
+databaseBtn.addEventListener('click', () => { chrome.tabs.create({ url: chrome.runtime.getURL('database.html') }); window.close(); });
+
+websiteBtn.addEventListener('click', async () => {
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  const source = tab?.id ? `?sourceTabId=${tab.id}` : '';
+  chrome.tabs.create({ url: chrome.runtime.getURL(`website-archive.html${source}`) });
+  window.close();
+});
+settingsBtn.addEventListener('click', () => {
+  chrome.tabs.create({ url: chrome.runtime.getURL('settings.html') });
   window.close();
 });
 

@@ -21,6 +21,23 @@ import { createZarcBundle, ZARC_MIME_TYPE } from './zarc.js';
 const ARCHIVE_META_KEY = 'webarchive-pilot.archive-meta-by-download-id';
 const noop = () => {};
 
+chrome.runtime.onMessage.addListener((message, sender, reply) => {
+  if (message.action !== 'capture-bundle-url') return;
+  (async () => {
+    let tab;
+    try {
+      const url = new URL(message.url);
+      if (!['http:', 'https:'].includes(url.protocol)) throw new Error('Enter an HTTP or HTTPS URL.');
+      tab = await chrome.tabs.create({ url: url.href, active: false });
+      await waitForTab(tab.id);
+      const archive = await captureArchivePayload(tab.id, noop);
+      reply({ archive: { ...archive, bytes: undefined, base64: uint8ArrayToBase64(archive.bytes) } });
+    } catch (error) { reply({ error: error.message }); }
+    finally { if (tab?.id) await chrome.tabs.remove(tab.id).catch(() => {}); }
+  })();
+  return true;
+});
+
 // ─── Context menu ─────────────────────────────────────────────────────────────
 
 chrome.runtime.onInstalled.addListener(() => {
@@ -108,6 +125,17 @@ async function runContextMenuBundle(activeTab, direction) {
 // ─── Port-based messaging (popup) ─────────────────────────────────────────────
 
 chrome.runtime.onConnect.addListener((port) => {
+  if (port.name === 'website-archiver') {
+    port.onMessage.addListener(async (msg) => {
+      const send = (type, payload = {}) => { try { port.postMessage({ type, ...payload }); } catch (_) {} };
+      try {
+        if (msg.action === 'discover-website') send('website-discovered', await discoverWebsiteLinks(send, msg.sourceTabId));
+        if (msg.action === 'save-website-selection') send('website-done', await saveWebsiteSelection(send, msg.urls));
+      }
+      catch (error) { send('website-error', { message: error.message }); }
+    });
+    return;
+  }
   if (port.name === 'archiver-all') {
     port.onMessage.addListener(async (msg) => {
       if (msg.action !== 'start-all') return;
@@ -173,6 +201,87 @@ chrome.runtime.onConnect.addListener((port) => {
     }
   });
 });
+
+async function discoverWebsiteLinks(send, sourceTabId) {
+  const source = sourceTabId ? await chrome.tabs.get(sourceTabId) : (await chrome.tabs.query({ active: true, currentWindow: true }))[0];
+  if (!source || !isArchivableTab(source) || !/^https?:/.test(source.url || '')) throw new Error('Open a normal http or https page first.');
+  const origin = new URL(source.url).origin;
+  const storedSettings = await chrome.storage.local.get('webarchive-pilot.crawler-settings');
+  const settings = { maxPages: 100, exceptions: [], ...(storedSettings['webarchive-pilot.crawler-settings'] || {}) };
+  const maxPages = Math.max(1, Math.min(500, Number(settings.maxPages) || 100));
+  const exceptions = Array.isArray(settings.exceptions) ? settings.exceptions.map((rule) => String(rule).toLocaleLowerCase()).filter(Boolean) : [];
+  const queue = [source.url];
+  const seen = new Set(queue);
+  const discovered = [];
+  while (queue.length && discovered.length < maxPages) {
+    const url = queue.shift();
+    if (exceptions.some((rule) => url.toLocaleLowerCase().includes(rule))) continue;
+    send('website-status', { text: `Crawling page ${discovered.length + 1} of up to ${maxPages}…\n${url}` });
+    let tab = source.id && url === source.url ? source : null;
+    try {
+      if (!tab) { tab = await chrome.tabs.create({ url, active: false }); await waitForTab(tab.id); }
+      const result = await chrome.scripting.executeScript({ target: { tabId: tab.id }, func: () => ({ title: document.title, links: [...document.links].map((a) => a.href) }) });
+      const page = result[0]?.result || { title: url, links: [] };
+      discovered.push({ url, title: page.title || url });
+      for (const candidate of page.links) {
+        try { const parsed = new URL(candidate); parsed.hash = ''; if (parsed.origin === origin && /^https?:$/.test(parsed.protocol) && !seen.has(parsed.href) && !exceptions.some((rule) => parsed.href.toLocaleLowerCase().includes(rule))) { seen.add(parsed.href); queue.push(parsed.href); } } catch (_) {}
+      }
+    } catch (error) {
+      send('website-status', { text: `Skipped page: ${error.message}\n${url}` });
+    }
+    finally { if (tab?.id && tab.id !== source.id) { try { await chrome.tabs.remove(tab.id); } catch (_) {} } }
+  }
+  if (!discovered.length) throw new Error('No pages could be discovered on this domain.');
+  return { pages: discovered, origin, maxPages };
+}
+
+async function saveWebsiteSelection(send, urls) {
+  if (!Array.isArray(urls) || urls.length === 0) throw new Error('Select at least one page to save.');
+  const origin = new URL(urls[0]).origin;
+  if (!urls.every((url) => new URL(url).origin === origin)) throw new Error('All selected pages must belong to the same domain.');
+  const hostname = new URL(origin).hostname;
+  const folderName = sanitise(hostname);
+  let saved = 0;
+  for (let index = 0; index < urls.length; index += 1) {
+    const url = urls[index];
+    send('website-status', { text: `Capturing selected page ${index + 1} of ${urls.length}…\n${url}` });
+    let tab;
+    try {
+      tab = await chrome.tabs.create({ url, active: false });
+      await waitForTab(tab.id);
+      const archive = await captureArchivePayload(tab.id, noop);
+    const downloadId = await downloadBytes({
+      bytes: archive.bytes,
+      mimeType: 'application/x-webarchive',
+      filename: `${folderName}/${archive.filename}`,
+    });
+    await persistArchiveMeta(downloadId, {
+      archiveType: 'webarchive',
+      websiteCapture: true,
+      websiteFolder: folderName,
+      websiteOrigin: origin,
+      pageTitle: archive.pageTitle,
+      pageUrl: archive.pageUrl,
+      favIconUrl: archive.favIconUrl,
+      savedAt: archive.savedAt,
+    });
+      saved += 1;
+    } finally { if (tab?.id) { try { await chrome.tabs.remove(tab.id); } catch (_) {} } }
+  }
+  if (!saved) throw new Error('None of the selected pages could be saved.');
+  return { saved, folderName };
+}
+
+function waitForTab(tabId) {
+  return new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => { chrome.tabs.onUpdated.removeListener(listener); reject(new Error('Timed out loading page')); }, 20000);
+    const listener = (id, change) => { if (id === tabId && change.status === 'complete') { clearTimeout(timeout); chrome.tabs.onUpdated.removeListener(listener); resolve(); } };
+    chrome.tabs.onUpdated.addListener(listener);
+    chrome.tabs.get(tabId).then((tab) => {
+      if (tab.status === 'complete') { clearTimeout(timeout); chrome.tabs.onUpdated.removeListener(listener); resolve(); }
+    }).catch(reject);
+  });
+}
 
 // ─── Main archiving pipeline ──────────────────────────────────────────────────
 

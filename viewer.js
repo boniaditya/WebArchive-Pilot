@@ -29,7 +29,7 @@ import {
   recordOpenedArchive,
   sanitiseFilenameStem,
 } from './archive-utils.js';
-import { parseZarcBundle } from './zarc.js';
+import { parseZarcBundle, createZarcBundle, ZARC_MIME_TYPE } from './zarc.js';
 
 // ── DOM refs ──────────────────────────────────────────────────────────────────
 const shell = document.getElementById('shell');
@@ -874,6 +874,15 @@ function renderBundleSidebar() {
   sidebarEmpty.innerHTML = 'This <code>.zarc</code> bundle does not contain any archived tabs.';
   sidebarError.hidden = true;
   sidebarList.replaceChildren();
+  const add = document.createElement('button');
+  add.textContent = 'Add URLs to bundle';
+  add.className = 'sidebar-archive-action bundle-toolbar-action';
+  add.onclick = addBundleUrls;
+  const save = document.createElement('button');
+  save.textContent = 'Save edited .zarc';
+  save.className = 'sidebar-archive-action bundle-toolbar-action';
+  save.onclick = saveEditedBundle;
+  sidebarList.append(add, save);
 
   if (activeBundle.archives.length === 0) {
     sidebarSummary.textContent = 'This .zarc bundle is empty.';
@@ -1017,26 +1026,86 @@ function makeBundleEntryCard(archive) {
 
   body.append(title, meta, path, status);
 
-  if (archive.pageUrl) {
-    const actions = document.createElement('div');
-    actions.className = 'sidebar-archive-actions';
+  const remove = document.createElement('button');
+  remove.className = 'sidebar-archive-action';
+  remove.textContent = '🗑';
+  remove.title = 'Delete page from bundle';
+  remove.setAttribute('aria-label', 'Delete page from bundle');
+  remove.addEventListener('keydown', (event) => event.stopPropagation());
+  remove.onclick = async (event) => {
+    event.stopPropagation();
+    if (!confirm('Remove this page from the edited bundle? Save edited .zarc to keep your changes.')) return;
+    activeBundle.archives = activeBundle.archives.filter((entry) => entry.id !== archive.id);
+    activeBundle.archives.forEach((entry, index) => { entry.index = index; });
+    if (activeBundleEntryId === archive.id) {
+      if (activeBundle.archives.length) await openBundleEntry(activeBundle.archives[0].id);
+      else hideCurrentPreview();
+    }
+    renderBundleSidebar();
+  };
+  const actions = document.createElement('div');
+  actions.className = 'sidebar-archive-actions';
+  actions.append(remove);
 
+  if (archive.pageUrl) {
     const sourceLink = document.createElement('a');
     sourceLink.className = 'sidebar-archive-action';
     sourceLink.href = archive.pageUrl;
     sourceLink.target = '_blank';
     sourceLink.rel = 'noopener';
-    sourceLink.innerHTML = '<span class="sidebar-archive-action-icon" aria-hidden="true">↗</span><span class="sidebar-archive-action-label">Open source</span>';
+    sourceLink.innerHTML = '<span class="sidebar-archive-action-icon" aria-hidden="true">↗</span>';
+    sourceLink.title = 'Open source page';
+    sourceLink.setAttribute('aria-label', 'Open source page');
     sourceLink.addEventListener('click', (event) => {
       event.stopPropagation();
     });
 
     actions.append(sourceLink);
-    body.append(actions);
   }
+  body.append(actions);
 
   card.append(body);
   return card;
+}
+
+async function addBundleUrls() {
+  if (!activeBundle) return;
+  const input = prompt('Enter URLs to capture, separated by spaces or new lines. Changes are kept when you Save edited .zarc.');
+  if (!input?.trim()) return;
+  const bundle = activeBundle;
+  try {
+    const urls = [...new Set(input.trim().split(/\s+/).map((value) => {
+      const url = new URL(value);
+      if (!['http:', 'https:'].includes(url.protocol)) throw new Error('Use HTTP or HTTPS URLs.');
+      return url.href;
+    }))];
+    for (let index = 0; index < urls.length; index++) {
+      sidebarSummary.textContent = `Capturing ${index + 1} of ${urls.length}: ${urls[index]}`;
+      const response = await chrome.runtime.sendMessage({ action: 'capture-bundle-url', url: urls[index] });
+      if (response.error) throw new Error(response.error);
+      const { base64, ...archive } = response.archive;
+      const bytes = Uint8Array.from(atob(base64), (character) => character.charCodeAt(0));
+      bundle.archives.push({ ...archive, bytes, id: crypto.randomUUID(), index: bundle.archives.length, sizeBytes: bytes.byteLength });
+    }
+  } catch (error) { alert(`Could not add all URLs: ${error.message}. Successfully captured pages remain in the edited bundle.`); }
+  if (activeBundle === bundle) renderBundleSidebar();
+}
+
+async function saveEditedBundle() {
+  if (!activeBundle?.archives.length) { alert('Add at least one page before saving.'); return; }
+  try {
+    const { bytes } = createZarcBundle({ title: activeBundle.title, archives: activeBundle.archives });
+    const url = URL.createObjectURL(new Blob([bytes], { type: ZARC_MIME_TYPE }));
+    try {
+      const downloadId = await chrome.downloads.download({ url, filename: activeBundle.filename.replace(/\.zarc$/i, '') + '-edited.zarc', saveAs: true });
+      const key = 'webarchive-pilot.archive-meta-by-download-id';
+      const stored = await chrome.storage.local.get(key);
+      const meta = stored[key] || {};
+      meta[String(downloadId)] = { archiveType: 'zarc', bundleTitle: activeBundle.title, pageTitle: activeBundle.title, pageUrl: activeBundle.archives[0]?.pageUrl || '', entryCount: activeBundle.archives.length, savedAt: new Date().toISOString() };
+      await chrome.storage.local.set({ [key]: meta });
+      sidebarSummary.textContent = 'Edited bundle saved as a new .zarc download.';
+    } finally { setTimeout(() => URL.revokeObjectURL(url), 60000); }
+  } catch (error) { alert(`Could not save edited bundle: ${error.message}`); }
 }
 
 function updateSidebarSelection() {
@@ -1070,7 +1139,7 @@ function toggleSidebar() {
 function applySidebarState(collapsed) {
   shell.classList.toggle('sidebar-collapsed', collapsed);
   sidebarToggleIcon.textContent = collapsed ? '›' : '‹';
-  sidebarToggleText.textContent = collapsed ? 'Open' : 'Back';
+  sidebarToggleText.textContent = collapsed ? 'Open' : 'Collapse';
   sidebarToggle.setAttribute('aria-expanded', String(!collapsed));
   sidebarToggle.setAttribute('aria-label', collapsed ? 'Open sidebar' : 'Collapse sidebar');
 }

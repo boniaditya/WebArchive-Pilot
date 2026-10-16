@@ -28,6 +28,8 @@ The project also ships with a built-in viewer so Chrome can open `.webarchive` f
 
 ## Main Features
 
+- Request a feature using the popup link: describe your idea, then review and send the prefilled email to boni.aditya@gmail.com in your configured email app.
+
 - Save the active page from the popup.
 - Save all open tabs in the current window.
 - Save only tabs on the left or right of the active tab.
