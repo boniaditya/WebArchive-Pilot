@@ -61,17 +61,6 @@ export function pathToFileUrl(path) {
 }
 
 export async function readDownloadedArchive(item) {
-  let fileAccessAllowed = await isFileSchemeAccessAllowed();
-  if (!fileAccessAllowed) fileAccessAllowed = await requestFileAccess();
-  if (!fileAccessAllowed) {
-    throw new Error('File access is disabled. Enable "Allow access to file URLs", or use Browse local file to select the archive.');
-  }
-  // Prefer the saved file: original download URLs can be expired or incomplete.
-  try {
-    return await fetchArchiveBytes(pathToFileUrl(item.filename));
-  } catch (_) {
-    // Try the original in-memory download only if the saved file cannot be read.
-  }
   const candidateUrls = [item.finalUrl, item.url].filter(Boolean);
 
   for (const url of candidateUrls) {
@@ -84,6 +73,11 @@ export async function readDownloadedArchive(item) {
     }
   }
 
+  const fileAccessAllowed = await isFileSchemeAccessAllowed();
+  if (!fileAccessAllowed) {
+    throw new Error('Enable "Allow access to file URLs" for WebArchive Pilot in chrome://extensions, then try again.');
+  }
+
   const fileUrl = pathToFileUrl(item.filename);
 
   try {
@@ -94,47 +88,6 @@ export async function readDownloadedArchive(item) {
     }
     throw new Error('Chrome could not reopen that archive from either its original download URL or the local file path. Make sure the file still exists and file URL access is enabled for this extension.');
   }
-}
-
-let fileAccessPrompt = null;
-function requestFileAccess() {
-  if (fileAccessPrompt) return fileAccessPrompt;
-  if (typeof document === 'undefined') return Promise.resolve(false);
-  fileAccessPrompt = new Promise((resolve) => {
-    const dialog = document.createElement('dialog');
-    dialog.setAttribute('aria-label', 'Allow access to saved archive files');
-    dialog.style.cssText = 'max-width:440px;border:1px solid #d8dbe2;border-radius:16px;padding:24px;font:15px/1.5 system-ui;color:#1d1d1f;box-shadow:0 20px 80px #0003';
-    const title = document.createElement('h2');
-    title.textContent = 'Allow access to saved archives';
-    const instructions = document.createElement('p');
-    instructions.textContent = 'Chrome requires your permission to preview downloaded archives. Open extension settings, turn on “Allow access to file URLs”, then return here and click Check permission.';
-    const message = document.createElement('p');
-    message.setAttribute('role', 'status');
-    const settings = document.createElement('button');
-    settings.textContent = 'Open extension settings';
-    settings.onclick = async () => {
-      try { await chrome.tabs.create({ url: `chrome://extensions/?id=${chrome.runtime.id}` }); }
-      catch (_) { message.textContent = 'Open chrome://extensions, select WebArchive Pilot → Details, and enable Allow access to file URLs.'; }
-    };
-    const check = document.createElement('button');
-    check.textContent = 'Check permission';
-    check.onclick = async () => {
-      if (await isFileSchemeAccessAllowed()) dialog.close('granted');
-      else message.textContent = 'Access is still disabled. Enable Allow access to file URLs in extension settings first.';
-    };
-    const cancel = document.createElement('button');
-    cancel.textContent = 'Cancel';
-    cancel.onclick = () => dialog.close();
-    for (const button of [settings, check, cancel]) {
-      button.type = 'button';
-      button.style.cssText = 'padding:9px 12px;margin:4px;border:1px solid #cbd0d8;border-radius:8px;background:#f5f7fa;color:#1d1d1f;cursor:pointer';
-    }
-    dialog.append(title, instructions, settings, check, cancel, message);
-    dialog.addEventListener('close', () => { const granted = dialog.returnValue === 'granted'; dialog.remove(); fileAccessPrompt = null; resolve(granted); }, { once: true });
-    document.body.append(dialog);
-    dialog.showModal();
-  });
-  return fileAccessPrompt;
 }
 
 async function fetchArchiveBytes(url) {

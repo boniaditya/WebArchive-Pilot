@@ -142,19 +142,6 @@
       line-height: 1.45;
     }
 
-    .history-search {
-      width: min(360px, 100%);
-      margin-top: 12px;
-      padding: 10px 12px;
-      border: 1px solid var(--line);
-      border-radius: 10px;
-      font: inherit;
-      color: var(--text);
-      background: #fff;
-    }
-
-    .history-search:focus-visible { outline: 3px solid rgba(10, 124, 255, 0.28); outline-offset: 2px; border-color: var(--accent); }
-
     .list {
       display: grid;
       gap: 12px;
@@ -476,7 +463,6 @@
         <h2>Your archive history</h2>
         <p id="summaryText">Loading downloaded archives…</p>
         <p class="bundle-hint" id="bundleHint">Select downloaded <code>.webarchive</code> files to package them into one tabbed <code>.zarc</code> bundle.</p>
-        <input id="historySearch" class="history-search" type="search" placeholder="Search titles, filenames, URLs, and paths…" autocomplete="off" aria-label="Search archive history" />
       </div>
     </section>
 

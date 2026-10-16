@@ -28,8 +28,6 @@ The project also ships with a built-in viewer so Chrome can open `.webarchive` f
 
 ## Main Features
 
-- Request a feature using the popup link: describe your idea, then review and send the prefilled email to boni.aditya@gmail.com in your configured email app.
-
 - Save the active page from the popup.
 - Save all open tabs in the current window.
 - Save only tabs on the left or right of the active tab.
@@ -39,9 +37,6 @@ The project also ships with a built-in viewer so Chrome can open `.webarchive` f
 - Open `.webarchive` files created by Safari or by this extension.
 - Render archived HTML, CSS, images, fonts, scripts, and other captured resources inside a sandboxed viewer.
 - Run entirely client-side with no backend, build pipeline, or external service.
-- Crawl the current website origin, inspect discovered pages in a live preview, filter or group the results, and save only selected pages.
-- Save selected discovered URLs as a plain-text link list without creating offline page copies.
-- Remove duplicate links, ignore configured URL patterns and blocked domains, and show the crawl queue as it progresses.
 
 ## How Saving Works
 
@@ -130,23 +125,16 @@ These flows report completion through Chrome notifications.
 The extension requests the following permissions:
 
 - `activeTab`: access the currently focused page when saving from the popup
-- `clipboardWrite`: copy the visible discovered-link list from the website review page
 - `downloads`: write the generated `.webarchive` file to disk
 - `pageCapture`: capture the current page as MHTML
 - `tabs`: query open tabs, read titles and URLs, and support bulk-save actions
-- `scripting`: extract normalized links from pages inspected by the same-origin crawler
 - `contextMenus`: add right-click save commands
 - `notifications`: show progress and completion messages outside the popup
-- `storage`: remember crawler settings and archive metadata
-- Host access lets the crawler inspect pages on the selected website. The crawler still queues only URLs with the exact same origin as the starting page.
 
 ## Project Structure
 
 - `manifest.json`: extension manifest and permission declarations
 - `background.js`: service worker, save pipeline, bulk-save flows, notifications, and context menus
-- `website-archive.html` and `website-archive.js`: crawl progress, link review, preview, filtering, selection, and saving
-- `settings.html` and `settings.js`: crawl limits, depth, page-section exclusions, blog and file-type filtering, URL include/exclude patterns, and blocked-domain rules
-- `THIRD_PARTY_NOTICES.md`: licenses and attribution for adapted third-party source
 - `popup.html`: popup interface for save and open actions
 - `popup.js`: popup behavior, progress UI, and background messaging
 - `viewer.html`: standalone `.webarchive` viewer page
