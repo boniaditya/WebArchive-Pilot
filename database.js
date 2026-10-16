@@ -1,6 +1,7 @@
 import { basename, formatBytes, formatDate, loadArchiveMeta, removeArchiveMeta } from './archive-utils.js';
 const content = document.getElementById('content');
 const preview = document.getElementById('preview');
+const requestedDownloadId = Number(new URLSearchParams(location.search).get('downloadId')) || null;
 const shell = document.querySelector('.shell');
 const sidebar = document.querySelector('aside');
 const sidebarToggle = document.createElement('button');
@@ -26,6 +27,14 @@ sidebarStyles.textContent = `
   .thread a { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .thread .meta { margin-left:0; }
   .database-sidebar-toggle:focus-visible { outline:3px solid #0a7cff; outline-offset:2px; }
+  .link-list-preview { height:100%; overflow:auto; padding:34px; background:#fff; }
+  .link-list-preview h2 { margin:0 0 6px; }
+  .link-list-preview p { color:#667085; }
+  .saved-links { list-style:none; padding:0; margin:24px 0; border:1px solid #d8dbe2; border-radius:12px; overflow:hidden; }
+  .saved-links li { padding:12px 14px; border-bottom:1px solid #edf0f3; }
+  .saved-links li:last-child { border-bottom:0; }
+  .saved-links a { color:#0a67c7; overflow-wrap:anywhere; }
+  .saved-links strong { display:block; margin-bottom:4px; color:#1d1d1f; }
   .shell.database-collapsed { grid-template-columns:64px minmax(0, 1fr); }
   .shell.database-collapsed aside { padding:16px 8px; }
   .shell.database-collapsed aside > :not(.database-sidebar-toggle) { display:none; }
@@ -53,7 +62,8 @@ addWebsiteBtn.onclick = async () => {
     const url = new URL(input.trim());
     if (!['http:', 'https:'].includes(url.protocol)) throw new Error('Use an HTTP or HTTPS URL.');
     const source = await chrome.tabs.create({ url: url.href, active: false });
-    await chrome.tabs.create({ url: chrome.runtime.getURL(`website-archive.html?sourceTabId=${source.id}`) });
+    const params = new URLSearchParams({ sourceTabId: String(source.id), sourceUrl: url.href });
+    await chrome.tabs.create({ url: chrome.runtime.getURL(`website-archive.html?${params}`) });
   } catch (error) { alert(`Could not add website: ${error.message}`); }
 };
 
@@ -73,6 +83,7 @@ async function loadDatabase() {
     }
     content.replaceChildren();
     if (!groups.size) { const empty = document.createElement('div'); empty.className = 'empty'; empty.textContent = 'No captured website archives have been saved yet.'; content.append(empty); return; }
+    let requestedRow = null;
     for (const [url, threads] of groups) {
       const folder = document.createElement('section'); folder.className = 'folder';
       const head = document.createElement('div'); head.className = 'folder-head';
@@ -93,8 +104,10 @@ async function loadDatabase() {
       head.append(link, deleteFolder); folder.append(head);
       for (const { item, data } of threads) {
         const row = document.createElement('div'); row.className = 'thread';
-        const icon = document.createElement('span'); icon.textContent = data.websiteCapture ? '📄' : '🧵';
-        const bundle = document.createElement('a'); bundle.href = chrome.runtime.getURL(`viewer.html?downloadId=${item.id}`); bundle.textContent = data.bundleTitle || data.pageTitle || basename(item.filename || 'archive.webarchive');
+        const isLinkList = data.archiveType === 'link-list';
+        const icon = document.createElement('span'); icon.textContent = isLinkList ? '🔗' : data.websiteCapture ? '📄' : '🧵';
+        const bundle = document.createElement('a'); bundle.href = isLinkList ? '#' : chrome.runtime.getURL(`viewer.html?downloadId=${item.id}`); bundle.textContent = data.bundleTitle || data.pageTitle || basename(item.filename || 'archive.webarchive');
+        bundle.onclick = (event) => event.preventDefault();
         const details = document.createElement('span'); details.className = 'meta'; details.textContent = `${data.entryCount ? `${data.entryCount} pages · ` : ''}${formatBytes(item.fileSize || item.bytesReceived || 0)} · ${formatDate(item.startTime)}`;
         const deleteThread = document.createElement('button'); deleteThread.type = 'button'; deleteThread.className = 'thread-delete'; deleteThread.textContent = '🗑'; deleteThread.title = 'Delete this archive'; deleteThread.setAttribute('aria-label', `Delete ${bundle.textContent}`);
         deleteThread.onclick = async (event) => {
@@ -113,14 +126,51 @@ async function loadDatabase() {
         row.addEventListener('click', () => {
           content.querySelectorAll('.thread.selected').forEach((element) => element.classList.remove('selected'));
           row.classList.add('selected');
-          preview.replaceChildren();
-          const frame = document.createElement('iframe');
-          frame.src = bundle.href;
-          frame.title = `Preview of ${bundle.textContent}`;
-          preview.append(frame);
+          if (isLinkList) renderLinkListPreview(data, bundle.textContent);
+          else {
+            preview.replaceChildren();
+            const frame = document.createElement('iframe');
+            frame.src = bundle.href;
+            frame.title = `Preview of ${bundle.textContent}`;
+            preview.append(frame);
+          }
         });
+        if (requestedDownloadId === item.id) requestedRow = row;
       }
       content.append(folder);
     }
+    requestedRow?.click();
   } catch (error) { content.textContent = `Could not load the archive database: ${error.message}`; content.className = 'error'; }
+}
+
+function renderLinkListPreview(data, title) {
+  preview.replaceChildren();
+  const panel = document.createElement('article');
+  panel.className = 'link-list-preview';
+  const heading = document.createElement('h2');
+  heading.textContent = title;
+  const summary = document.createElement('p');
+  const entries = Array.isArray(data.links) ? data.links : [];
+  summary.textContent = `${entries.length} saved link${entries.length === 1 ? '' : 's'} · No offline page copies`;
+  const list = document.createElement('ul');
+  list.className = 'saved-links';
+  for (const entry of entries) {
+    const value = typeof entry === 'string' ? { title: '', url: entry } : entry;
+    if (!value?.url) continue;
+    const item = document.createElement('li');
+    if (value.title && value.title !== value.url) {
+      const name = document.createElement('strong');
+      name.textContent = value.title;
+      item.append(name);
+    }
+    const link = document.createElement('a');
+    link.href = value.url;
+    link.target = '_blank';
+    link.rel = 'noopener';
+    link.textContent = value.url;
+    item.append(link);
+    list.append(item);
+  }
+  panel.append(heading, summary, list);
+  preview.append(panel);
 }

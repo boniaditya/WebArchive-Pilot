@@ -1,5 +1,76 @@
 # Changelog
 
+## 38.0.0 - 2026-10-16
+
+- Replaced direct website iframe embedding with a sanitized rendered preview from a temporary background tab.
+- Website previews now work when the source server blocks framing with X-Frame-Options or CSP frame-ancestors.
+- Preview tabs close automatically and do not create saved offline copies.
+
+## 37.0.0 - 2026-10-16
+
+- Registers saved text link lists in the Archive Database under their source website.
+- Opens the newly saved link-list thread automatically and previews its clickable URLs on the right.
+
+## 36.0.0 - 2026-10-16
+
+- Added Save selected links to download a plain-text URL list without creating offline page archives.
+- Link lists are saved in the website-named Downloads folder with a timestamped filename.
+
+## 35.0.1 - 2026-10-16
+
+- Preserves the starting website URL alongside its tab ID.
+- Recreates a temporary crawl tab when the original source tab has been closed or replaced.
+
+## 35.0.0 - 2026-10-16
+
+- Expanded crawler settings with a default option to exclude blog pages.
+- Added controls for crawl depth, starting-path scope, include and exclude URL patterns, query variants, file types, downloads, and nofollow links.
+- Added controls to ignore links found in headers, footers, navigation menus, and sidebars.
+- Crawl rules are applied before a discovered URL is opened or added to the queue.
+
+## 34.0.0 - 2026-10-16
+
+- Streams each crawled page into the review list immediately instead of waiting for the full crawl batch.
+- Opens the live preview as soon as the first page is discovered.
+- Preserves selections and removed links when the final crawl results arrive.
+
+## 33.0.0 - 2026-10-16
+
+- Added a Hide log / Show log control to the website crawl page.
+- Added resumable Crawl more pages batches that continue from the remaining queue while preserving results and selections.
+
+## 32.0.0 - 2026-10-16
+
+- Added compact, borderless actions to open each discovered page in a new tab or remove it from the crawl results.
+- Removing a discovered page also clears it from the save selection.
+
+## 31.0.1 - 2026-10-16
+
+- Added a compatibility fallback from direct crawler messages to the extension's persistent crawler port.
+- Replaced Chrome's raw missing-receiver error with instructions for recovering from a stale extension page.
+
+## 31.0.0 - 2026-10-16
+
+- Adapted Link Grabber's Manifest V3 anchor extraction for richer, normalized link discovery.
+- Added duplicate detection, substring filtering, domain grouping, visible-link selection, and copying to the crawl review page.
+- Added inherited blocked-domain rules to crawler settings, including comment lines and subdomain matching.
+- Improved live crawl progress with queued-page and per-page link counts.
+- Added the required Link Grabber MIT attribution in `THIRD_PARTY_NOTICES.md`.
+
+## 30.0.1 - 2026-10-16
+
+- Replaced the website crawler's persistent port with direct request/response messaging and explicit timeouts.
+
+## 30.0.0 - 2026-10-16
+
+- Added permission fallback crawling through temporary tabs and discarded in-memory page captures.
+- Temporary crawl tabs close automatically after their links are inspected.
+
+## 29.0.1 - 2026-10-16
+
+- Fixed website crawling after extension reloads by reconnecting when a crawl starts and reporting disconnected workers.
+- Waits for the source page to finish loading before discovering links.
+
 ## 29.0.0 - 2026-10-16
 
 - Fixed database bundle rows so titles, metadata, and actions remain visible in a single row.

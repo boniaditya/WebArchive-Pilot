@@ -19,6 +19,14 @@ import { parseMHTML    } from './mhtml.js';
 import { createZarcBundle, ZARC_MIME_TYPE } from './zarc.js';
 
 const ARCHIVE_META_KEY = 'webarchive-pilot.archive-meta-by-download-id';
+const CRAWLER_SETTINGS_KEY = 'webarchive-pilot.crawler-settings';
+const DEFAULT_CRAWLER_SETTINGS = Object.freeze({
+  maxPages: 100, maxDepth: 10, exceptions: [], includePatterns: [], blockedDomains: [],
+  excludeBlogs: true, excludeHeaderLinks: false, excludeFooterLinks: false,
+  excludeNavLinks: false, excludeAsideLinks: false, respectNofollow: true,
+  skipDownloadLinks: true, stripQueryParameters: false, stayWithinStartingPath: false,
+  excludedFileTypes: ['pdf', 'zip', 'jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'mp3', 'mp4', 'mov', 'avi', 'dmg', 'exe'],
+});
 const noop = () => {};
 
 chrome.runtime.onMessage.addListener((message, sender, reply) => {
@@ -129,7 +137,7 @@ chrome.runtime.onConnect.addListener((port) => {
     port.onMessage.addListener(async (msg) => {
       const send = (type, payload = {}) => { try { port.postMessage({ type, ...payload }); } catch (_) {} };
       try {
-        if (msg.action === 'discover-website') send('website-discovered', await discoverWebsiteLinks(send, msg.sourceTabId));
+        if (msg.action === 'discover-website') send('website-discovered', await discoverWebsiteLinks(send, msg.sourceTabId, msg.sourceUrl, msg.crawlState));
         if (msg.action === 'save-website-selection') send('website-done', await saveWebsiteSelection(send, msg.urls));
       }
       catch (error) { send('website-error', { message: error.message }); }
@@ -202,37 +210,238 @@ chrome.runtime.onConnect.addListener((port) => {
   });
 });
 
-async function discoverWebsiteLinks(send, sourceTabId) {
-  const source = sourceTabId ? await chrome.tabs.get(sourceTabId) : (await chrome.tabs.query({ active: true, currentWindow: true }))[0];
+chrome.runtime.onMessage.addListener((message, sender, reply) => {
+  if (!['discover-website-request', 'save-website-selection-request', 'preview-website-url-request'].includes(message.action)) return;
+  const send = (type, payload = {}) => chrome.runtime.sendMessage({ type: 'website-progress', progressType: type, ...payload }).catch(() => {});
+  (async () => {
+    try {
+      const result = message.action === 'discover-website-request'
+        ? await discoverWebsiteLinks(send, message.sourceTabId, message.sourceUrl, message.crawlState)
+        : message.action === 'preview-website-url-request'
+          ? await createWebsitePreview(message.url)
+          : await saveWebsiteSelection(send, message.urls);
+      reply({ ok: true, result });
+    } catch (error) { reply({ ok: false, error: error.message }); }
+  })();
+  return true;
+});
+
+async function createWebsitePreview(value) {
+  const url = normaliseCrawlUrl(value);
+  if (!url) throw new Error('The preview URL is not valid.');
+  let tab;
+  try {
+    tab = await chrome.tabs.create({ url, active: false });
+    await waitForTab(tab.id);
+    const result = await chrome.scripting.executeScript({ target: { tabId: tab.id }, func: () => {
+      const clone = document.documentElement.cloneNode(true);
+      clone.querySelectorAll('script,iframe,object,embed,base,meta[http-equiv="content-security-policy"],meta[http-equiv="x-frame-options"]').forEach((element) => element.remove());
+      clone.querySelectorAll('*').forEach((element) => {
+        for (const attribute of [...element.attributes]) {
+          if (/^on/i.test(attribute.name)) element.removeAttribute(attribute.name);
+          if (/^(href|src|action|formaction)$/i.test(attribute.name) && /^\s*javascript:/i.test(attribute.value)) element.removeAttribute(attribute.name);
+        }
+      });
+      const head = clone.querySelector('head') || clone.insertBefore(document.createElement('head'), clone.firstChild);
+      const base = document.createElement('base');
+      base.href = location.href;
+      head.prepend(base);
+      return { html: '<!doctype html>' + clone.outerHTML, title: document.title || location.href };
+    } });
+    const preview = result[0]?.result;
+    if (!preview?.html) throw new Error('Chrome could not read the rendered page.');
+    return { ...preview, url };
+  } finally {
+    if (tab?.id) { try { await chrome.tabs.remove(tab.id); } catch (_) {} }
+  }
+}
+
+async function discoverWebsiteLinks(send, sourceTabId, sourceUrlHint, crawlState) {
+  let source = null;
+  if (sourceTabId) {
+    try { source = await chrome.tabs.get(sourceTabId); } catch (_) { /* The original tab may have been closed. */ }
+  }
+  const fallbackUrl = normaliseCrawlUrl(sourceUrlHint || crawlState?.sourceUrl);
+  if (!source && fallbackUrl) source = { id: null, url: fallbackUrl, status: 'complete' };
+  if (!source) source = (await chrome.tabs.query({ active: true, currentWindow: true }))[0];
   if (!source || !isArchivableTab(source) || !/^https?:/.test(source.url || '')) throw new Error('Open a normal http or https page first.');
+  send('website-status', { text: 'Preparing the source page for crawling…' });
+  if (source.status !== 'complete') await waitForTab(source.id);
   const origin = new URL(source.url).origin;
-  const storedSettings = await chrome.storage.local.get('webarchive-pilot.crawler-settings');
-  const settings = { maxPages: 100, exceptions: [], ...(storedSettings['webarchive-pilot.crawler-settings'] || {}) };
+  const storedSettings = await chrome.storage.local.get(CRAWLER_SETTINGS_KEY);
+  const settings = { ...DEFAULT_CRAWLER_SETTINGS, ...(storedSettings[CRAWLER_SETTINGS_KEY] || {}) };
   const maxPages = Math.max(1, Math.min(500, Number(settings.maxPages) || 100));
-  const exceptions = Array.isArray(settings.exceptions) ? settings.exceptions.map((rule) => String(rule).toLocaleLowerCase()).filter(Boolean) : [];
-  const queue = [source.url];
-  const seen = new Set(queue);
+  const configuredDepth = Number(settings.maxDepth);
+  const maxDepth = Math.max(0, Math.min(50, Number.isFinite(configuredDepth) ? configuredDepth : 10));
+  const exceptions = normaliseRules(settings.exceptions);
+  const includePatterns = normaliseRules(settings.includePatterns);
+  const excludedFileTypes = new Set(normaliseRules(settings.excludedFileTypes).map((value) => value.replace(/^\./, '')));
+  const blockedDomains = normaliseBlockedDomains(settings.blockedDomains);
+  const sourceUrl = normaliseCrawlUrl(source.url, undefined, settings.stripQueryParameters);
+  const sourceParsed = new URL(sourceUrl);
+  const startingDirectory = sourceParsed.pathname.endsWith('/') ? sourceParsed.pathname : sourceParsed.pathname.replace(/[^/]*$/, '');
+  if (isBlockedHostname(sourceParsed.hostname, blockedDomains)) throw new Error('This website is blocked in crawler settings.');
+  if (settings.excludeBlogs && isBlogUrl(sourceUrl)) throw new Error('Blog pages are excluded in crawler settings.');
+  const canResume = crawlState?.origin === origin && Array.isArray(crawlState.queue) && Array.isArray(crawlState.seen);
+  const queue = canResume
+    ? crawlState.queue.map((entry) => normaliseQueueEntry(entry, settings.stripQueryParameters)).filter(Boolean)
+    : [{ url: sourceUrl, depth: 0 }];
+  const seen = new Set(canResume ? crawlState.seen.map((url) => normaliseCrawlUrl(url, undefined, settings.stripQueryParameters)).filter(Boolean) : [sourceUrl]);
   const discovered = [];
+  const previousStats = canResume && crawlState.stats ? crawlState.stats : {};
+  let inspectedLinks = Number(previousStats.inspectedLinks) || 0;
+  let duplicateLinks = Number(previousStats.duplicateLinks) || 0;
+  let externalLinks = Number(previousStats.externalLinks) || 0;
+  let blockedLinks = Number(previousStats.blockedLinks) || 0;
   while (queue.length && discovered.length < maxPages) {
-    const url = queue.shift();
-    if (exceptions.some((rule) => url.toLocaleLowerCase().includes(rule))) continue;
-    send('website-status', { text: `Crawling page ${discovered.length + 1} of up to ${maxPages}…\n${url}` });
+    const entry = queue.shift();
+    const { url, depth } = entry;
+    if (matchesUrlRule(url, exceptions) || depth > maxDepth) continue;
+    send('website-status', { text: `Crawling page ${discovered.length + 1} of up to ${maxPages}…\n${url}`, current: discovered.length + 1, maximum: maxPages, queued: queue.length, url });
     let tab = source.id && url === source.url ? source : null;
     try {
       if (!tab) { tab = await chrome.tabs.create({ url, active: false }); await waitForTab(tab.id); }
-      const result = await chrome.scripting.executeScript({ target: { tabId: tab.id }, func: () => ({ title: document.title, links: [...document.links].map((a) => a.href) }) });
-      const page = result[0]?.result || { title: url, links: [] };
-      discovered.push({ url, title: page.title || url });
+      const page = await discoverLinksFromTab(tab.id, url, send);
+      const discoveredPage = { url, title: page.title || url, hostname: new URL(url).hostname, linkCount: page.links.length };
+      discovered.push(discoveredPage);
+      send('website-page-discovered', { page: discoveredPage, total: discovered.length, maximum: maxPages });
       for (const candidate of page.links) {
-        try { const parsed = new URL(candidate); parsed.hash = ''; if (parsed.origin === origin && /^https?:$/.test(parsed.protocol) && !seen.has(parsed.href) && !exceptions.some((rule) => parsed.href.toLocaleLowerCase().includes(rule))) { seen.add(parsed.href); queue.push(parsed.href); } } catch (_) {}
+        inspectedLinks += 1;
+        const candidateUrl = normaliseCrawlUrl(candidate.href || candidate, url, settings.stripQueryParameters);
+        if (!candidateUrl) continue;
+        const parsed = new URL(candidateUrl);
+        if (parsed.origin !== origin) { externalLinks += 1; continue; }
+        const excludedArea = (settings.excludeHeaderLinks && candidate.inHeader)
+          || (settings.excludeFooterLinks && candidate.inFooter)
+          || (settings.excludeNavLinks && candidate.inNav)
+          || (settings.excludeAsideLinks && candidate.inAside);
+        const extension = parsed.pathname.split('/').pop()?.split('.').pop()?.toLocaleLowerCase() || '';
+        const excludedByRules = isBlockedHostname(parsed.hostname, blockedDomains)
+          || matchesUrlRule(candidateUrl, exceptions)
+          || (includePatterns.length > 0 && !matchesUrlRule(candidateUrl, includePatterns))
+          || (settings.excludeBlogs && isBlogUrl(candidateUrl))
+          || excludedArea
+          || (settings.respectNofollow && String(candidate.rel || '').toLocaleLowerCase().split(/\s+/).includes('nofollow'))
+          || (settings.skipDownloadLinks && Boolean(candidate.download))
+          || excludedFileTypes.has(extension)
+          || (settings.stayWithinStartingPath && !parsed.pathname.startsWith(startingDirectory))
+          || depth + 1 > maxDepth;
+        if (excludedByRules) { blockedLinks += 1; continue; }
+        if (seen.has(candidateUrl)) { duplicateLinks += 1; continue; }
+        seen.add(candidateUrl);
+        queue.push({ url: candidateUrl, depth: depth + 1 });
       }
+      send('website-status', { text: `Found ${page.links.length} links on this page · ${queue.length} pages queued`, current: discovered.length, maximum: maxPages, queued: queue.length, url });
     } catch (error) {
       send('website-status', { text: `Skipped page: ${error.message}\n${url}` });
     }
     finally { if (tab?.id && tab.id !== source.id) { try { await chrome.tabs.remove(tab.id); } catch (_) {} } }
   }
-  if (!discovered.length) throw new Error('No pages could be discovered on this domain.');
-  return { pages: discovered, origin, maxPages };
+  if (!discovered.length && !canResume) throw new Error('No pages could be discovered on this domain.');
+  const stats = { inspectedLinks, duplicateLinks, externalLinks, blockedLinks };
+  return {
+    pages: discovered,
+    origin,
+    maxPages,
+    stats,
+    hasMore: queue.length > 0,
+    crawlState: { origin, sourceUrl: sourceUrl || source.url, queue, seen: [...seen], stats },
+  };
+}
+
+async function discoverLinksFromTab(tabId, pageUrl, send) {
+  try {
+    // Adapted from Link Grabber's Manifest V3 content-script extraction.
+    const result = await chrome.scripting.executeScript({ target: { tabId }, func: () => {
+      const elements = document.querySelectorAll('a:link:not([href^="javascript"])');
+      const links = new Array(elements.length);
+      for (let index = 0; index < elements.length; index += 1) {
+        const anchor = elements[index];
+        links[index] = { hash: anchor.hash, host: anchor.host, hostname: anchor.hostname, href: anchor.href, origin: anchor.origin, pathname: anchor.pathname, search: anchor.search, text: (anchor.innerText || anchor.textContent || '').trim(), inHeader: Boolean(anchor.closest('header')), inFooter: Boolean(anchor.closest('footer')), inNav: Boolean(anchor.closest('nav')), inAside: Boolean(anchor.closest('aside')), rel: anchor.rel || '', download: anchor.hasAttribute('download') };
+      }
+      return { title: document.title, links };
+    } });
+    return result[0]?.result || { title: pageUrl, links: [] };
+  } catch (permissionError) {
+    send('website-status', { text: `Direct page access is unavailable. Inspecting a temporary capture instead…\n${pageUrl}` });
+    const blob = await new Promise((resolve, reject) => {
+      chrome.pageCapture.saveAsMHTML({ tabId }, (value) => {
+        if (chrome.runtime.lastError) reject(new Error(chrome.runtime.lastError.message));
+        else if (!value) reject(new Error('The temporary page capture returned no data.'));
+        else resolve(value);
+      });
+    });
+    const parts = parseMHTML(new TextDecoder().decode(await blob.arrayBuffer()));
+    const main = parts.find((part) => part.mimeType.includes('html')) || parts[0];
+    if (!main) throw permissionError;
+    const html = new TextDecoder(main.charset || 'utf-8').decode(main.data);
+    const title = html.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1]?.replace(/<[^>]+>/g, '').trim() || pageUrl;
+    const links = [];
+    const pattern = /\bhref\s*=\s*(?:"([^"]+)"|'([^']+)'|([^\s>]+))/gi;
+    for (const match of html.matchAll(pattern)) {
+      try {
+        const parsed = new URL(match[1] || match[2] || match[3], pageUrl);
+        links.push({ hash: parsed.hash, host: parsed.host, hostname: parsed.hostname, href: parsed.href, origin: parsed.origin, pathname: parsed.pathname, search: parsed.search, text: '', inHeader: false, inFooter: false, inNav: false, inAside: false, rel: '', download: false });
+      } catch (_) {}
+    }
+    return { title, links };
+  }
+}
+
+function normaliseBlockedDomains(values) {
+  const blocked = new Set();
+  for (const value of Array.isArray(values) ? values : []) {
+    const domain = String(value).trim().toLocaleLowerCase().replace(/^\.+|\.+$/g, '');
+    if (domain && !domain.startsWith('#')) blocked.add(domain);
+  }
+  return blocked;
+}
+
+function isBlockedHostname(hostname, blockedDomains) {
+  let candidate = String(hostname || '').toLocaleLowerCase();
+  while (candidate) {
+    if (blockedDomains.has(candidate)) return true;
+    const dot = candidate.indexOf('.');
+    if (dot < 0) break;
+    candidate = candidate.slice(dot + 1);
+  }
+  return false;
+}
+
+function normaliseCrawlUrl(value, base, stripQueryParameters = false) {
+  try {
+    const url = new URL(value, base);
+    if (!['http:', 'https:'].includes(url.protocol)) return null;
+    url.hash = '';
+    if (stripQueryParameters) url.search = '';
+    return url.href;
+  } catch (_) { return null; }
+}
+
+function normaliseQueueEntry(entry, stripQueryParameters) {
+  const url = normaliseCrawlUrl(typeof entry === 'string' ? entry : entry?.url, undefined, stripQueryParameters);
+  if (!url) return null;
+  return { url, depth: Math.max(0, Number(typeof entry === 'string' ? 0 : entry.depth) || 0) };
+}
+
+function normaliseRules(values) {
+  return (Array.isArray(values) ? values : []).map((value) => String(value).trim().toLocaleLowerCase()).filter((value) => value && !value.startsWith('#'));
+}
+
+function matchesUrlRule(url, rules) {
+  const target = String(url).toLocaleLowerCase();
+  return rules.some((rule) => {
+    if (!rule.includes('*')) return target.includes(rule);
+    const pattern = rule.split('*').map((part) => part.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('.*');
+    try { return new RegExp(pattern, 'i').test(target); } catch (_) { return target.includes(rule.replaceAll('*', '')); }
+  });
+}
+
+function isBlogUrl(value) {
+  try {
+    const url = new URL(value);
+    return url.hostname.toLocaleLowerCase().startsWith('blog.') || /(^|\/)(blog|blogs)(\/|$)/i.test(url.pathname);
+  } catch (_) { return false; }
 }
 
 async function saveWebsiteSelection(send, urls) {

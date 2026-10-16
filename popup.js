@@ -46,7 +46,10 @@ databaseBtn.addEventListener('click', () => { chrome.tabs.create({ url: chrome.r
 
 websiteBtn.addEventListener('click', async () => {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-  const source = tab?.id ? `?sourceTabId=${tab.id}` : '';
+  const params = new URLSearchParams();
+  if (tab?.id) params.set('sourceTabId', String(tab.id));
+  if (/^https?:/.test(tab?.url || '')) params.set('sourceUrl', tab.url);
+  const source = params.size ? `?${params}` : '';
   chrome.tabs.create({ url: chrome.runtime.getURL(`website-archive.html${source}`) });
   window.close();
 });
