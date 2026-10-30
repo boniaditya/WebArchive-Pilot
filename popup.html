@@ -251,6 +251,25 @@
     }
     #downloadsBtn:hover { background: #f3fbf5; }
 
+    #featureRequestBtn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 7px;
+      width: 100%;
+      margin-top: 8px;
+      padding: 9px 0;
+      border: 1.5px solid #8b5cf6;
+      border-radius: 10px;
+      background: #fff;
+      color: #6d28d9;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    #featureRequestBtn:hover { background: #f8f5ff; }
+
     /* Footer */
     footer {
       padding: 8px 16px 10px;
@@ -325,6 +344,21 @@
     </button>
   </div>
 
+  <div class="side-tabs-row">
+    <button id="saveLeftIndividualBtn">
+      <svg width="13" height="13" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M12 4L6 10l6 6" stroke="#0071e3" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      Save left tabs as individual .webarchive files
+    </button>
+    <button id="saveRightIndividualBtn">
+      Save right tabs as individual .webarchive files
+      <svg width="13" height="13" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M8 4l6 6-6 6" stroke="#0071e3" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </button>
+  </div>
+
   <button id="openBtn">
     <svg width="15" height="15" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
       <rect x="2" y="4" width="16" height="13" rx="2" stroke="#1d1d1f" stroke-width="1.6"/>
@@ -342,6 +376,11 @@
       <circle cx="5" cy="14.5" r="1" fill="#1f6f35"/>
     </svg>
     View downloaded archives
+  </button>
+
+  <button id="featureRequestBtn">
+    <span aria-hidden="true">✦</span>
+    Request a feature
   </button>
 </main>
 

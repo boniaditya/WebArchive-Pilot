@@ -19,6 +19,7 @@
       --warning-bg: #fff8e8;
       --warning-line: #f0cf74;
       --warning-text: #8a5a00;
+      --archive-preview-width: 50vw;
     }
 
     body {
@@ -29,9 +30,122 @@
     }
 
     .shell {
-      max-width: 980px;
-      margin: 0 auto;
-      padding: 28px 20px 40px;
+      width: 100%;
+      max-width: none;
+      margin: 0;
+      padding: 24px 16px 40px;
+      transition: width .18s ease;
+    }
+
+    body.archive-preview-open .shell { width: calc(100% - var(--archive-preview-width)); }
+    body.archive-preview-open .library-layout { grid-template-columns: clamp(180px, 24%, 230px) minmax(0, 1fr); }
+
+    .library-layout {
+      display: grid;
+      grid-template-columns: 250px minmax(0, 1fr);
+      gap: 18px;
+      align-items: start;
+    }
+
+    .folder-pane {
+      position: sticky;
+      top: 18px;
+      padding: 14px;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      background: var(--card);
+      box-shadow: 0 8px 24px rgba(25, 35, 53, 0.05);
+    }
+
+    .folder-pane-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+
+    .folder-pane-toggle {
+      border: 1px solid #b9d6ff;
+      border-radius: 8px;
+      width: 30px;
+      height: 30px;
+      background: #eef6ff;
+      color: #075cbb;
+      font: inherit;
+      font-size: 18px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    .folder-pane.collapsed { padding: 10px 6px; }
+    .folder-pane.collapsed .folder-pane-head { justify-content: center; margin: 0; }
+    .folder-pane.collapsed .folder-pane-head h2,
+    .folder-pane.collapsed .new-folder-btn,
+    .folder-pane.collapsed .folder-list { display: none; }
+    .library-layout.folder-collapsed { grid-template-columns: 44px minmax(0, 1fr); }
+
+    .folder-pane h2 { font-size: 15px; }
+
+    .new-folder-btn {
+      border: 1px solid #b9d6ff;
+      border-radius: 9px;
+      padding: 6px 9px;
+      background: #eef6ff;
+      color: #0857c5;
+      font: inherit;
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    .folder-list { display: grid; gap: 5px; }
+
+    .folder-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto auto;
+      gap: 4px;
+      align-items: center;
+      border-radius: 10px;
+    }
+
+    .folder-row.drag-over { background: #dcecff; outline: 2px solid #7bb7ff; }
+
+    .folder-button {
+      min-width: 0;
+      border: 0;
+      border-radius: 9px;
+      padding: 9px 10px;
+      background: transparent;
+      color: #344054;
+      font: inherit;
+      font-size: 13px;
+      font-weight: 600;
+      text-align: left;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .folder-button.active { background: #e8f2ff; color: #075cbb; }
+    .folder-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .folder-count { margin-left: auto; color: #7c8698; font-size: 11px; }
+
+    .folder-icon-button {
+      border: 0;
+      border-radius: 7px;
+      padding: 5px;
+      background: transparent;
+      color: #667085;
+      cursor: pointer;
+      line-height: 1;
+    }
+
+    .folder-icon-button:hover { background: #eef1f5; color: #1d1d1f; }
+    .library-content {
+      min-width: 0;
+      container: archive-library / inline-size;
     }
 
     .hero {
@@ -95,7 +209,34 @@
       box-shadow: none;
     }
 
+    .bulk-dialog { width: min(760px, calc(100vw - 24px)); max-height: min(85vh, 900px); margin: auto; padding: 0; overflow-y: auto; border: 1px solid var(--line); border-radius: 16px; background: #fff; color: var(--text); box-shadow: 0 24px 80px rgba(16, 24, 40, .25); }
+    .bulk-dialog::backdrop { background: rgba(16, 24, 40, .48); }
+    .bulk-dialog-body { padding: 22px; display: grid; gap: 16px; }
+    .bulk-dialog-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+    .bulk-dialog h2 { font-size: 22px; }
+    .bulk-dialog h3 { font-size: 14px; }
+    .bulk-dialog p { color: var(--muted); font-size: 13px; line-height: 1.45; }
+    .bulk-dialog button, .bulk-dialog select { font: inherit; }
+    .bulk-dialog button { border: 1px solid var(--line); border-radius: 9px; padding: 8px 11px; background: #fff; color: #075cbb; font-size: 13px; font-weight: 700; cursor: pointer; }
+    .bulk-dialog button:disabled { opacity: .55; cursor: default; }
+    .bulk-dialog .bulk-primary { background: #0a7cff; border-color: #0a7cff; color: #fff; }
+    .bulk-source-head, .bulk-dialog-actions { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; }
+    .bulk-source-head > div, .bulk-dialog-actions > div { display: flex; flex-wrap: wrap; gap: 8px; }
+    .bulk-file-list { max-height: 210px; overflow: auto; border: 1px solid var(--line); border-radius: 10px; }
+    .bulk-file-row { display: flex; align-items: center; gap: 10px; padding: 9px 11px; border-bottom: 1px solid #e9ebf0; font-size: 13px; overflow-wrap: anywhere; }
+    .bulk-file-row:last-child { border-bottom: 0; }
+    .bulk-file-row input { flex: 0 0 auto; accent-color: var(--accent); }
+    .bulk-file-row span { min-width: 0; }
+    .bulk-file-empty { padding: 12px; }
+    .bulk-format { display: grid; gap: 7px; font-size: 13px; font-weight: 700; }
+    .bulk-format select { width: 100%; border: 1px solid #b8c0cc; border-radius: 9px; padding: 9px; background: #fff; color: var(--text); }
+    .bulk-progress { width: 100%; height: 10px; accent-color: var(--accent); }
+    .bulk-result-list { max-height: 150px; overflow: auto; padding-left: 20px; color: #475467; font-size: 12px; line-height: 1.5; }
+    .bulk-result-list li.bulk-failure { color: #b23b3b; }
+    .bulk-dialog[aria-busy="true"] .bulk-source-head button, .bulk-dialog[aria-busy="true"] .bulk-file-list input, .bulk-dialog[aria-busy="true"] .bulk-format select { pointer-events: none; opacity: .55; }
+
     .notice,
+    .search-panel,
     .summary,
     .empty,
     .error {
@@ -118,6 +259,31 @@
       margin-bottom: 4px;
       color: #7a4f00;
     }
+
+    .search-panel { margin-bottom: 18px; }
+    .advanced-search-options summary {
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 700;
+      color: #075cbb;
+      user-select: none;
+      width: max-content;
+    }
+
+    .search-body { margin-top: 12px; display: grid; gap: 13px; }
+    .search-main { display: grid; grid-template-columns: minmax(0, 1fr); gap: 9px; }
+    .advanced-actions { display: flex; flex-wrap: wrap; gap: 9px; }
+    .search-panel input[type="search"], .search-panel input[type="date"], .search-panel input[type="number"], .search-panel select {
+      width: 100%; min-width: 0; border: 1px solid #b8c0cc; border-radius: 9px; padding: 9px 10px; background: #fff; color: var(--text); font: inherit; font-size: 13px;
+    }
+    .search-panel button { border: 1px solid #b9d6ff; border-radius: 9px; padding: 9px 12px; background: #eef6ff; color: #0857c5; font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; }
+    .search-panel button:disabled { opacity: .55; cursor: wait; }
+    .search-options { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px 14px; }
+    .search-field { display: grid; gap: 5px; color: #475467; font-size: 11px; font-weight: 700; }
+    .search-checks { display: flex; flex-wrap: wrap; gap: 8px 16px; padding-top: 2px; }
+    .search-checks label { display: inline-flex; align-items: center; gap: 6px; color: #475467; font-size: 12px; font-weight: 600; }
+    .search-checks input { accent-color: var(--accent); }
+    .index-status { color: var(--muted); font-size: 12px; line-height: 1.4; }
 
     .summary {
       display: flex;
@@ -156,7 +322,10 @@
       justify-content: space-between;
       gap: 16px;
       align-items: flex-start;
+      flex-wrap: wrap;
     }
+
+    .archive-card.dragging { opacity: 0.5; }
 
     .archive-main {
       min-width: 0;
@@ -169,6 +338,26 @@
       gap: 12px;
       min-width: 0;
     }
+
+    .archive-expand-toggle {
+      width: 30px;
+      height: 30px;
+      flex: 0 0 30px;
+      display: grid;
+      place-items: center;
+      border: 1px solid #afd2ff;
+      border-radius: 8px;
+      background: #edf6ff;
+      color: #0768c9;
+      font: inherit;
+      font-size: 20px;
+      font-weight: 500;
+      line-height: 1;
+      cursor: pointer;
+    }
+
+    .archive-expand-toggle:hover { background: #dfeeff; border-color: #82b9f7; }
+    .archive-expand-toggle:disabled { opacity: .5; cursor: not-allowed; }
 
     .archive-favicon-shell {
       width: 42px;
@@ -226,6 +415,13 @@
       width: 100%;
       color: #5f7190;
       transition: color 0.14s;
+    }
+
+    body.archive-preview-open .archive-pathBtn {
+      display: block;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
 
     .archive-pathBtn:hover:not(:disabled) {
@@ -322,6 +518,29 @@
       line-height: 1.3;
     }
 
+    .folder-picker {
+      grid-column: 1 / -1;
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr);
+      align-items: center;
+      gap: 8px;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    .folder-picker select {
+      width: 100%;
+      min-width: 0;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 7px 9px;
+      background: #fff;
+      color: var(--text);
+      font: inherit;
+      font-size: 12px;
+    }
+
     .archive-actions > button,
     .archive-actions > a,
     .archive-export > button {
@@ -370,12 +589,38 @@
       border-color: #e6b0b0;
     }
 
+    .archive-actions .archive-delete-wide { grid-column: 1 / -1; }
+
     .archive-actions .disabled {
       pointer-events: none;
       background: #f4f5f7;
       border-color: #e1e4ea;
       color: #7c8698;
     }
+
+    .bundle-contents {
+      flex: 1 0 100%;
+      width: 100%;
+      border-top: 1px solid var(--line);
+      padding-top: 14px;
+    }
+
+    .bundle-contents[hidden] { display: none; }
+    .bundle-contents-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
+    .bundle-contents-head h3 { font-size: 14px; }
+    .bundle-contents-status { color: var(--muted); font-size: 12px; }
+    .extract-all-btn { border: 1px solid #b9d6ff; border-radius: 9px; padding: 8px 11px; background: #eef6ff; color: #0857c5; font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; }
+    .extract-all-btn:disabled { opacity: .55; cursor: wait; }
+    .bundle-entry-list { display: grid; gap: 7px; max-height: 430px; overflow: auto; padding-right: 3px; }
+    .bundle-entry { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 10px 11px; border: 1px solid #e2e6ec; border-radius: 10px; background: #fafbfc; cursor: pointer; }
+    .bundle-entry:hover { border-color: #9fc7ff; background: #f1f7ff; }
+    .bundle-entry:focus-visible { outline: 2px solid #75b3ff; outline-offset: 2px; }
+    .bundle-entry-title { color: #24324a; font-size: 13px; font-weight: 700; word-break: break-word; }
+    .bundle-entry-meta { margin-top: 4px; color: var(--muted); font-size: 11px; line-height: 1.4; word-break: break-all; }
+    .bundle-entry button { border: 1px solid var(--line); border-radius: 8px; padding: 7px 9px; background: #fff; color: #075cbb; font: inherit; font-size: 11px; font-weight: 700; cursor: pointer; white-space: nowrap; }
+    .bundle-entry button:disabled { opacity: .55; cursor: wait; }
+    .bundle-entry-actions { display: flex; gap: 7px; align-items: center; }
+    .bundle-preview-btn { background: #eaf4ff !important; border-color: #aed2ff !important; }
 
     .archive-action-icon {
       width: 15px;
@@ -404,6 +649,52 @@
       color: #b23b3b;
     }
 
+    .search-snippet {
+      margin-top: 10px;
+      padding: 9px 10px;
+      border-left: 3px solid #80b8ff;
+      border-radius: 0 8px 8px 0;
+      background: #f3f8ff;
+      color: #475467;
+      font-size: 12px;
+      line-height: 1.5;
+    }
+
+    .embedded-search-matches { margin-top: 10px; display: grid; gap: 6px; }
+    .embedded-match-button { width: 100%; border: 1px solid #cfe2ff; border-radius: 9px; padding: 9px 10px; background: #f5f9ff; color: #24324a; text-align: left; cursor: pointer; }
+    .embedded-match-button:hover { background: #eaf3ff; border-color: #9fc7ff; }
+    .embedded-match-title { display: block; font-size: 12px; font-weight: 700; }
+    .embedded-match-meta { display: block; margin-top: 3px; color: var(--muted); font-size: 11px; }
+
+    .match-panel-backdrop { position: fixed; inset: 0; z-index: 49; background: rgba(16, 24, 40, .22); }
+    .match-panel-backdrop[hidden], .match-panel[hidden] { display: none; }
+    .match-panel { position: fixed; z-index: 50; right: 0; top: 0; bottom: 0; width: min(620px, 92vw); display: flex; flex-direction: column; background: #fff; border-left: 1px solid var(--line); box-shadow: -18px 0 45px rgba(16, 24, 40, .18); }
+    .match-panel-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; padding: 20px; border-bottom: 1px solid var(--line); }
+    .match-panel-head h2 { font-size: 18px; line-height: 1.3; word-break: break-word; }
+    .match-panel-url { margin-top: 6px; color: #0a67d1; font-size: 12px; word-break: break-all; }
+    .match-panel-close { flex-shrink: 0; border: 1px solid var(--line); border-radius: 9px; padding: 7px 10px; background: #fff; color: var(--text); font: inherit; font-weight: 700; cursor: pointer; }
+    .match-panel-summary { padding: 12px 20px; border-bottom: 1px solid var(--line); color: var(--muted); font-size: 12px; }
+    .match-line-list { flex: 1; overflow: auto; padding: 14px 20px 28px; display: grid; align-content: start; gap: 9px; }
+    .match-line { padding: 11px 12px; border: 1px solid #dfe5ee; border-radius: 10px; background: #fafbfc; color: #344054; font-size: 13px; line-height: 1.55; white-space: pre-wrap; word-break: break-word; }
+    .match-line mark { border-radius: 3px; padding: 1px 2px; background: #ffe66d; color: #1d1d1f; font-weight: 700; }
+
+    .archive-preview-panel[hidden] { display: none; }
+    .archive-preview-panel { position: fixed; z-index: 40; top: 0; right: 0; bottom: 0; width: var(--archive-preview-width); display: flex; flex-direction: column; overflow: hidden; border-left: 1px solid var(--line); background: #fff; container: preview-panel / inline-size; }
+    .archive-preview-divider { position: absolute; z-index: 2; top: 0; bottom: 0; left: -5px; width: 10px; cursor: col-resize; background: transparent; touch-action: none; }
+    .archive-preview-divider::after { content: ''; position: absolute; top: 0; bottom: 0; left: 4px; width: 2px; background: #c6d1df; transition: width .12s, left .12s, background .12s; }
+    .archive-preview-divider:hover::after,
+    body.archive-preview-resizing .archive-preview-divider::after { left: 3px; width: 4px; background: #0a7cff; }
+    body.archive-preview-resizing { cursor: col-resize; user-select: none; }
+    .archive-preview-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 13px 16px; border-bottom: 1px solid var(--line); background: #fff; }
+    .archive-preview-copy { min-width: 0; }
+    .archive-preview-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 15px; }
+    .archive-preview-url { margin-top: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #0a67d1; font-size: 11px; }
+    .archive-preview-actions { display: flex; flex-shrink: 0; gap: 8px; }
+    .archive-preview-actions button { border: 1px solid var(--line); border-radius: 9px; padding: 8px 11px; background: #fff; color: #075cbb; font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; }
+    #archivePreviewFrame { flex: 1; width: 100%; min-height: 0; border: 0; background: #fff; }
+    .archive-preview-loading { position: absolute; inset: 58px 0 0; display: grid; place-items: center; background: #f8fafc; color: var(--muted); font-weight: 600; }
+    .archive-preview-loading[hidden] { display: none; }
+
     .empty,
     .error {
       text-align: center;
@@ -417,7 +708,106 @@
       border-color: #ffd6d6;
     }
 
+    @container archive-library (max-width: 760px) {
+      .archive-card {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr);
+        gap: 14px;
+        padding: 14px;
+      }
+
+      .archive-main,
+      .archive-actions,
+      .bundle-contents {
+        width: 100%;
+        min-width: 0;
+      }
+
+      .archive-actions {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .archive-link {
+        font-size: 15px;
+        line-height: 1.28;
+      }
+
+      .archive-meta,
+      .archive-path {
+        margin-top: 6px;
+        font-size: 12px;
+      }
+
+      .bundle-contents {
+        grid-column: 1 / -1;
+      }
+
+      .bundle-contents-head {
+        align-items: flex-start;
+        flex-wrap: wrap;
+      }
+
+      .bundle-entry {
+        grid-template-columns: minmax(0, 1fr);
+        gap: 9px;
+      }
+
+      .bundle-entry-actions {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        width: 100%;
+      }
+
+      .bundle-entry button {
+        width: 100%;
+      }
+    }
+
+    @container archive-library (max-width: 420px) {
+      .archive-actions,
+      .bundle-entry-actions {
+        grid-template-columns: minmax(0, 1fr);
+      }
+
+      .archive-head {
+        gap: 8px;
+      }
+
+      .archive-favicon-shell {
+        display: none;
+      }
+    }
+
+    @container preview-panel (max-width: 600px) {
+      .archive-preview-head {
+        align-items: flex-start;
+        flex-wrap: wrap;
+        gap: 10px;
+      }
+
+      .archive-preview-copy,
+      .archive-preview-actions {
+        width: 100%;
+      }
+
+      .archive-preview-title,
+      .archive-preview-url {
+        white-space: normal;
+        overflow-wrap: anywhere;
+      }
+
+      .archive-preview-actions {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+      }
+    }
+
     @media (max-width: 760px) {
+      :root { --archive-preview-width: 100vw; }
+      .search-main { grid-template-columns: 1fr; }
+      .search-options { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .library-layout { grid-template-columns: 1fr; }
+      .folder-pane { position: static; }
       .hero,
       .summary,
       .archive-card {
@@ -436,6 +826,10 @@
       }
 
       .archive-export > button { width: 100%; }
+
+      .archive-preview-panel {
+        box-shadow: none;
+      }
     }
   </style>
 </head>
@@ -448,6 +842,9 @@
       </div>
       <div class="actions">
         <button id="createBundleBtn" class="primary" type="button" disabled>Create .zarc bundle</button>
+        <button id="bulkConvertBtn" type="button">Bulk convert</button>
+        <button id="backupLibraryBtn" type="button">Back up library</button>
+        <button id="restoreLibraryBtn" type="button">Restore backup</button>
         <button id="refreshBtn" type="button">Refresh list</button>
         <button id="manualOpenBtn" type="button">Open archive manually</button>
       </div>
@@ -458,18 +855,135 @@
       Enable <em>Allow access to file URLs</em> for WebArchive Pilot in <code>chrome://extensions</code>, then reload the extension. Without it, Chrome can list your downloaded archives here, but it may block opening them directly in a new tab.
     </section>
 
-    <section class="summary">
-      <div>
-        <h2>Your archive history</h2>
-        <p id="summaryText">Loading downloaded archives…</p>
-        <p class="bundle-hint" id="bundleHint">Select downloaded <code>.webarchive</code> files to package them into one tabbed <code>.zarc</code> bundle.</p>
+    <section class="search-panel" aria-label="Archive search">
+      <div class="search-main">
+        <input id="searchQuery" type="search" placeholder="Search archive titles, URLs, filenames, folders, and captured page text" aria-label="Search archives" />
       </div>
+      <details class="advanced-search-options">
+        <summary>Advanced options</summary>
+        <div class="search-body">
+          <div class="advanced-actions">
+          <button id="indexContentBtn" type="button">Index archive text</button>
+          <button id="clearSearchBtn" type="button">Clear</button>
+          </div>
+          <div class="search-options">
+          <label class="search-field">Match<select id="searchMatch"><option value="all">All words</option><option value="any">Any word</option><option value="phrase">Exact phrase</option><option value="regex">Regular expression</option></select></label>
+          <label class="search-field">File type<select id="searchType"><option value="all">All archive types</option><option value="webarchive">.webarchive</option><option value="zarc">.zarc</option><option value="local">Locally opened</option></select></label>
+          <label class="search-field">Sort results<select id="searchSort"><option value="relevance">Relevance</option><option value="newest">Newest first</option><option value="oldest">Oldest first</option><option value="title">Title A–Z</option><option value="largest">Largest first</option><option value="smallest">Smallest first</option></select></label>
+          <label class="search-field">Folder<select id="searchFolder"><option value="all">All folders</option></select></label>
+          <label class="search-field">Saved after<input id="searchAfter" type="date" /></label>
+          <label class="search-field">Saved before<input id="searchBefore" type="date" /></label>
+          <label class="search-field">Minimum size (MB)<input id="searchMinSize" type="number" min="0" step="0.1" placeholder="Any" /></label>
+          <label class="search-field">Maximum size (MB)<input id="searchMaxSize" type="number" min="0" step="0.1" placeholder="Any" /></label>
+          </div>
+          <div class="search-checks">
+          <label><input id="fieldTitle" type="checkbox" checked />Titles</label>
+          <label><input id="fieldFilename" type="checkbox" checked />Filenames</label>
+          <label><input id="fieldUrl" type="checkbox" checked />Page URLs</label>
+          <label><input id="fieldFolder" type="checkbox" checked />Folder names</label>
+          <label><input id="fieldContent" type="checkbox" checked />Captured page text</label>
+          <label><input id="searchCase" type="checkbox" />Case sensitive</label>
+          </div>
+          <p class="index-status" id="searchStatus">Metadata search is ready. Index archive text to search inside saved pages.</p>
+        </div>
+      </details>
     </section>
 
-    <section class="error" id="errorState" hidden></section>
-    <section class="empty" id="emptyState" hidden>No completed <code>.webarchive</code> or <code>.zarc</code> downloads were found yet.</section>
-    <section class="list" id="archiveList"></section>
+    <div class="library-layout">
+      <aside class="folder-pane" aria-label="Archive folders">
+        <div class="folder-pane-head">
+          <h2>Folders</h2>
+          <button class="new-folder-btn" id="newFolderBtn" type="button">+ New</button>
+          <button class="folder-pane-toggle" id="folderPaneToggle" type="button" aria-label="Collapse folder sidebar" aria-expanded="true">‹</button>
+        </div>
+        <div class="folder-list" id="folderList"></div>
+      </aside>
+
+      <div class="library-content">
+        <section class="summary">
+          <div>
+            <h2 id="currentFolderTitle">All archives</h2>
+            <p id="summaryText">Loading downloaded archives…</p>
+            <p class="bundle-hint" id="bundleHint">Select downloaded <code>.webarchive</code> files to package them into one tabbed <code>.zarc</code> bundle.</p>
+          </div>
+        </section>
+
+        <section class="error" id="errorState" hidden></section>
+        <section class="empty" id="emptyState" hidden>This folder does not contain any archives yet.</section>
+        <section class="list" id="archiveList"></section>
+      </div>
+    </div>
   </div>
+
+  <div class="match-panel-backdrop" id="matchPanelBackdrop" hidden></div>
+  <aside class="match-panel" id="matchPanel" aria-label="Search match details" hidden>
+    <div class="match-panel-head">
+      <div><h2 id="matchPanelTitle"></h2><div class="match-panel-url" id="matchPanelUrl"></div></div>
+      <button class="match-panel-close" id="matchPanelClose" type="button">Close</button>
+    </div>
+    <div class="match-panel-summary" id="matchPanelSummary"></div>
+    <div class="match-line-list" id="matchLineList"></div>
+  </aside>
+
+  <section class="archive-preview-panel" id="archivePreviewPanel" aria-label="Archived page preview" hidden>
+    <div class="archive-preview-divider" id="archivePreviewDivider" role="separator" aria-label="Resize archive preview" aria-orientation="vertical" tabindex="0"></div>
+    <header class="archive-preview-head">
+      <div class="archive-preview-copy">
+        <h2 class="archive-preview-title" id="archivePreviewTitle"></h2>
+        <div class="archive-preview-url" id="archivePreviewUrl"></div>
+      </div>
+      <div class="archive-preview-actions">
+        <button id="archivePreviewExtract" type="button">Extract .webarchive</button>
+        <button id="archivePreviewClose" type="button">Close</button>
+      </div>
+    </header>
+    <div class="archive-preview-loading" id="archivePreviewLoading">Preparing archived page preview…</div>
+    <iframe id="archivePreviewFrame" sandbox="allow-scripts allow-forms allow-popups allow-downloads" title="Archived page preview"></iframe>
+  </section>
+
+  <input id="libraryBackupInput" type="file" accept="application/json,.json" hidden />
+
+  <dialog class="bulk-dialog" id="bulkConvertDialog" aria-labelledby="bulkConvertTitle">
+    <div class="bulk-dialog-body">
+      <div class="bulk-dialog-head">
+        <div>
+          <h2 id="bulkConvertTitle">Bulk convert archives</h2>
+          <p>Choose downloaded or local .webarchive files, then export each one as a separate file.</p>
+        </div>
+        <button id="bulkConvertClose" type="button" aria-label="Close bulk converter">Close</button>
+      </div>
+      <div class="bulk-source-head">
+        <h3>Downloaded archives</h3>
+        <div>
+          <button id="bulkSelectAll" type="button">Select all</button>
+          <button id="bulkClearSelection" type="button">Clear</button>
+        </div>
+      </div>
+      <div class="bulk-file-list" id="bulkDownloadedList"></div>
+      <div class="bulk-source-head">
+        <div><h3>Local archives</h3><p id="bulkLocalCount">No local files chosen.</p></div>
+        <button id="bulkChooseLocal" type="button">Choose local files…</button>
+      </div>
+      <div class="bulk-file-list" id="bulkLocalList"></div>
+      <label class="bulk-format">Convert to
+        <select id="bulkFormat">
+          <option value="mhtml">MHTML (.mhtml)</option>
+          <option value="html">Standalone HTML (.html)</option>
+          <option value="txt">Plain text (.txt)</option>
+          <option value="pdf">PDF (save each through Chrome)</option>
+        </select>
+      </label>
+      <p id="bulkFormatNote">Converted files will be saved separately in your Downloads folder.</p>
+      <progress class="bulk-progress" id="bulkProgress" value="0" max="1" hidden></progress>
+      <p id="bulkStatus" role="status" aria-live="polite">Select files to begin.</p>
+      <ol class="bulk-result-list" id="bulkResults" aria-label="Conversion results"></ol>
+      <div class="bulk-dialog-actions">
+        <div><button id="bulkStart" class="bulk-primary" type="button" disabled>Convert selected</button><button id="bulkNextPdf" type="button" hidden>Prepare next PDF</button></div>
+        <button id="bulkStop" type="button" hidden>Stop after current file</button>
+      </div>
+    </div>
+  </dialog>
+  <input id="bulkLocalInput" type="file" accept=".webarchive,application/x-webarchive" multiple hidden />
 
   <script type="module" src="downloads.js"></script>
 </body>

@@ -1,12 +1,13 @@
 import { decodeBplist } from './bplist_decoder.js';
 import { sanitiseFilenameStem } from './archive-utils.js';
 
-export async function exportWebArchive({ buffer, filename, format, saveAs = true, printWindow = null }) {
+export async function exportWebArchive({ buffer, filename, format, saveAs = true, printWindow = null, outputDirectory = '' }) {
   const bytes = buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer);
   const stem = sanitiseFilenameStem(filename.replace(/\.webarchive$/i, ''), 'webarchive-export');
+  const outputPath = outputDirectory ? `${outputDirectory.replace(/^\/+|\/+$/g, '')}/` : '';
 
   if (format === 'webarchive') {
-    return downloadExport(bytes, 'application/x-webarchive', `${stem}.webarchive`, saveAs);
+    return downloadExport(bytes, 'application/x-webarchive', `${outputPath}${stem}.webarchive`, saveAs);
   }
 
   let plist;
@@ -31,13 +32,13 @@ export async function exportWebArchive({ buffer, filename, format, saveAs = true
   }
 
   if (format === 'mhtml') {
-    return downloadExport(createMhtml(mainResource, subResources, pageUrl), 'multipart/related', `${stem}.mhtml`, saveAs);
+    return downloadExport(createMhtml(mainResource, subResources, pageUrl), 'multipart/related', `${outputPath}${stem}.mhtml`, saveAs);
   }
   if (format === 'html') {
-    return downloadExport(createStandaloneHtml(mainResource, subResources, pageUrl), 'text/html;charset=UTF-8', `${stem}.html`, saveAs);
+    return downloadExport(createStandaloneHtml(mainResource, subResources, pageUrl), 'text/html;charset=UTF-8', `${outputPath}${stem}.html`, saveAs);
   }
   if (format === 'txt') {
-    return downloadExport(createPlainText(mainResource), 'text/plain;charset=UTF-8', `${stem}.txt`, saveAs);
+    return downloadExport(createPlainText(mainResource), 'text/plain;charset=UTF-8', `${outputPath}${stem}.txt`, saveAs);
   }
 
   throw new Error('That export format is not supported.');
@@ -57,6 +58,22 @@ function createStandaloneHtml(mainResource, subResources, pageUrl) {
   const dataUrlMap = buildDataUrlMap(subResources);
   const charset = mainResource.WebResourceTextEncodingName || 'UTF-8';
   return patchHtml(new TextDecoder(charset).decode(mainResource.WebResourceData), pageUrl, dataUrlMap);
+}
+
+export function createWebArchivePreviewHtml(buffer) {
+  const bytes = buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer);
+  let plist;
+  try {
+    plist = decodeBplist(bytes);
+  } catch (error) {
+    throw new Error(`Not a valid .webarchive file: ${error.message}`);
+  }
+  const mainResource = plist.WebMainResource;
+  const subResources = Array.isArray(plist.WebSubresources) ? plist.WebSubresources : [];
+  if (!mainResource || !(mainResource.WebResourceData instanceof Uint8Array)) {
+    throw new Error('Missing or invalid WebMainResource in archive.');
+  }
+  return createStandaloneHtml(mainResource, subResources, mainResource.WebResourceURL || '');
 }
 
 function buildDataUrlMap(subResources) {

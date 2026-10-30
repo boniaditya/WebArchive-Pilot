@@ -295,6 +295,33 @@
       line-height: 1.4;
     }
 
+    #bundleSearch {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 7px;
+      margin-top: 11px;
+    }
+
+    #bundleSearch[hidden] { display: none; }
+
+    #bundleSearchInput {
+      min-width: 0;
+      width: 100%;
+      border: 1px solid #b8c4d4;
+      border-radius: 9px;
+      padding: 8px 9px;
+      background: #fff;
+      color: var(--text);
+      font: inherit;
+      font-size: 12px;
+    }
+
+    #bundleSearchInput:focus { outline: 2px solid rgba(10, 124, 255, .22); border-color: var(--accent); }
+    #bundleSearchClear { border: 1px solid #bfd8f6; border-radius: 9px; padding: 7px 9px; background: #eef6ff; color: #075cbb; font: inherit; font-size: 11px; font-weight: 700; cursor: pointer; }
+    #bundleSearchStatus { grid-column: 1 / -1; color: var(--muted); font-size: 11px; line-height: 1.35; }
+    .bundle-search-snippet { margin-top: 7px; padding: 7px 8px; border-left: 3px solid #70adf5; border-radius: 0 7px 7px 0; background: #f2f7fd; color: #4b5870; font-size: 11px; line-height: 1.45; }
+    .bundle-search-snippet mark, .sidebar-archive-title mark { border-radius: 2px; padding: 0 1px; background: #ffe36d; color: #202938; }
+
     #sidebarError,
     #sidebarEmpty {
       margin: 14px;
@@ -757,6 +784,11 @@
           <div class="sidebar-section-head">
             <h2 id="sidebarSectionTitle">Downloaded archives</h2>
             <div id="sidebarSummary">Loading your archive list…</div>
+            <div id="bundleSearch" hidden>
+              <input id="bundleSearchInput" type="search" placeholder="Search this .zarc" aria-label="Search inside this zarc bundle" />
+              <button id="bundleSearchClear" type="button">Clear</button>
+              <div id="bundleSearchStatus">Search titles, URLs, and captured page text.</div>
+            </div>
           </div>
 
           <div id="sidebarError" hidden></div>

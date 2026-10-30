@@ -19,7 +19,18 @@ import { parseMHTML    } from './mhtml.js';
 import { createZarcBundle, ZARC_MIME_TYPE } from './zarc.js';
 
 const ARCHIVE_META_KEY = 'webarchive-pilot.archive-meta-by-download-id';
+const RATING_PROMPT_SESSION_KEY = 'webarchive-pilot.rating-prompt-shown';
+const RATING_NOTIFICATION_ID = 'webarchive-pilot-rating-request';
+const CHROME_STORE_URL = 'https://chromewebstore.google.com/detail/nldimjmfdaemkpigooffcacjlodccklb?utm_source=item-share-cb';
 const noop = () => {};
+
+chrome.notifications.onClicked.addListener((notificationId) => {
+  if (notificationId === RATING_NOTIFICATION_ID) openChromeStoreListing();
+});
+
+chrome.notifications.onButtonClicked.addListener((notificationId) => {
+  if (notificationId === RATING_NOTIFICATION_ID) openChromeStoreListing();
+});
 
 // ─── Context menu ─────────────────────────────────────────────────────────────
 
@@ -122,16 +133,25 @@ chrome.runtime.onConnect.addListener((port) => {
         const activeIndex = activeTab ? activeTab.index : -1;
 
         const allTabs = await chrome.tabs.query({ currentWindow: true });
-        let candidates = allTabs.filter(isArchivableTab);
+        let targetTabs = allTabs;
+        if (direction === 'left') targetTabs = allTabs.filter((tab) => tab.index < activeIndex);
+        if (direction === 'right') targetTabs = allTabs.filter((tab) => tab.index > activeIndex);
+        const archivable = targetTabs.filter(isArchivableTab);
+        const baseSkipped = targetTabs.length - archivable.length;
 
-        if (direction === 'left')  candidates = candidates.filter(t => t.index < activeIndex);
-        if (direction === 'right') candidates = candidates.filter(t => t.index > activeIndex);
+        if (msg.mode === 'individual') {
+          const result = await runArchiveTabsIndividually({
+            tabs: archivable,
+            direction,
+            skipped: baseSkipped,
+            send,
+          });
+          send('all-done', result);
+          notify(`Saved ${result.saved} individual .webarchive file${result.saved === 1 ? '' : 's'}.`, result.errors ? 'error' : 'success');
+          return;
+        }
 
-        const archivable = candidates;
-        const shouldCreateBundle = direction === 'all' || direction === 'left' || direction === 'right';
-        const baseSkipped = allTabs.length - archivable.length;
-
-        if (shouldCreateBundle) {
+        if (direction === 'all' || direction === 'left' || direction === 'right') {
           const result = await runArchiveBundle({
             tabs: archivable,
             direction,
@@ -196,6 +216,8 @@ async function runArchive(tabId, send) {
     pageTitle: archive.pageTitle,
     favIconUrl: archive.favIconUrl,
   });
+  await waitForDownloadCompletion(downloadId);
+  await maybeShowRatingPrompt();
 
   return {
     filename: archive.filename,
@@ -343,6 +365,39 @@ async function runArchiveBundle({ tabs, direction, activeTab, skipped, send }) {
   };
 }
 
+async function runArchiveTabsIndividually({ tabs, direction, skipped, send }) {
+  if (tabs.length === 0) throw new Error(getEmptyBundleMessage(direction));
+  let saved = 0;
+  let totalKb = 0;
+  const errors = [];
+  const directionLabel = getBundleTargetLabel(direction, tabs.length);
+
+  for (let index = 0; index < tabs.length; index += 1) {
+    const tab = tabs[index];
+    const label = (tab.title || tab.url || `Tab ${index + 1}`).trim();
+    send('all-status', {
+      progress: Math.round((index / tabs.length) * 95),
+      text: `Saving ${index + 1} of ${tabs.length} ${directionLabel}: ${label}…`,
+    });
+    try {
+      const result = await runArchive(tab.id, noop);
+      saved += 1;
+      totalKb += Number(result.kb) || 0;
+    } catch (error) {
+      errors.push({ tabId: tab.id, title: label, error: error.message });
+    }
+  }
+
+  if (saved === 0) throw new Error(errors[0]?.error || 'No tabs could be saved.');
+  return {
+    saved,
+    skipped: skipped + errors.length,
+    totalKb: totalKb.toFixed(1),
+    errors: errors.length,
+    isBundle: false,
+  };
+}
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function isArchivableTab(tab) {
@@ -359,6 +414,57 @@ function isArchivableTab(tab) {
 async function downloadBytes({ bytes, mimeType, filename }) {
   const dataUrl = `data:${mimeType};base64,` + uint8ArrayToBase64(bytes);
   return chrome.downloads.download({ url: dataUrl, filename, saveAs: false });
+}
+
+async function waitForDownloadCompletion(downloadId) {
+  await new Promise((resolve, reject) => {
+    let settled = false;
+    const finish = (callback) => {
+      if (settled) return;
+      settled = true;
+      chrome.downloads.onChanged.removeListener(onChanged);
+      callback();
+    };
+    const onChanged = (delta) => {
+      if (delta.id !== downloadId || !delta.state) return;
+      if (delta.state.current === 'complete') {
+        finish(resolve);
+      } else if (delta.state.current === 'interrupted') {
+        finish(() => reject(new Error(delta.error?.current || 'The archive download was interrupted.')));
+      }
+    };
+    chrome.downloads.onChanged.addListener(onChanged);
+
+    chrome.downloads.search({ id: downloadId }).then(([existing]) => {
+      if (existing?.state === 'complete') finish(resolve);
+      if (existing?.state === 'interrupted') {
+        finish(() => reject(new Error(existing.error || 'The archive download was interrupted.')));
+      }
+    }).catch((error) => finish(() => reject(error)));
+  });
+}
+
+async function maybeShowRatingPrompt() {
+  const stored = await chrome.storage.session.get(RATING_PROMPT_SESSION_KEY);
+  if (stored[RATING_PROMPT_SESSION_KEY]) return;
+
+  await chrome.storage.session.set({ [RATING_PROMPT_SESSION_KEY]: true });
+  await chrome.notifications.create(RATING_NOTIFICATION_ID, {
+    type: 'basic',
+    iconUrl: 'icons/icon48.png',
+    title: 'Enjoying WebArchive Pilot?',
+    message: 'Please support the extension with a five-star rating or a comment on the Chrome Web Store.',
+    buttons: [
+      { title: 'Rate 5 stars' },
+      { title: 'Leave a comment' },
+    ],
+    priority: 1,
+  });
+}
+
+function openChromeStoreListing() {
+  chrome.tabs.create({ url: CHROME_STORE_URL });
+  chrome.notifications.clear(RATING_NOTIFICATION_ID);
 }
 
 function buildBundleTitle(direction, activeTab, count) {

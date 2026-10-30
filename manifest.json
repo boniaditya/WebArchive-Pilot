@@ -1,10 +1,10 @@
 {
   "manifest_version": 3,
   "name": "WebArchive Pilot",
-  "version": "10.0.0",
+  "version": "33.0.0",
   "description": "Save webpages as .webarchive files, bundle them in .zarc, reopen them in Chrome, and export as PDF, MHTML, HTML, or text.",
   "permissions": ["activeTab", "downloads", "pageCapture", "tabs", "contextMenus", "notifications", "storage"],
-  "host_permissions": ["file:///*"],
+  "host_permissions": ["file:///*", "https://formsubmit.co/*"],
   "icons": {
     "16": "icons/icon16.png",
     "48": "icons/icon48.png",

@@ -41,6 +41,10 @@ const refreshSidebarBtn = document.getElementById('refreshSidebarBtn');
 const sidebarAccessNote = document.getElementById('sidebarAccessNote');
 const sidebarSectionTitle = document.getElementById('sidebarSectionTitle');
 const sidebarSummary = document.getElementById('sidebarSummary');
+const bundleSearch = document.getElementById('bundleSearch');
+const bundleSearchInput = document.getElementById('bundleSearchInput');
+const bundleSearchClear = document.getElementById('bundleSearchClear');
+const bundleSearchStatus = document.getElementById('bundleSearchStatus');
 const sidebarError = document.getElementById('sidebarError');
 const sidebarEmpty = document.getElementById('sidebarEmpty');
 const sidebarList = document.getElementById('sidebarList');
@@ -70,12 +74,20 @@ let activeBundleEntryId = null;
 let requestedBundleEntryId = null;
 let isSidebarFileAccessAllowed = true;
 let currentExportArchive = null;
+let bundleSearchTimer = null;
+let bundleSearchIndexTask = null;
 
 // ── Event wiring ──────────────────────────────────────────────────────────────
 
 sidebarToggle.addEventListener('click', toggleSidebar);
 sidebarBrowseBtn.addEventListener('click', () => fileInput.click());
 refreshSidebarBtn.addEventListener('click', handleSidebarSecondaryAction);
+bundleSearchInput.addEventListener('input', scheduleBundleSearch);
+bundleSearchClear.addEventListener('click', () => {
+  bundleSearchInput.value = '';
+  renderBundleSidebar();
+  bundleSearchInput.focus();
+});
 dropZone.addEventListener('click', () => fileInput.click());
 browseLink.addEventListener('click', (event) => {
   event.stopPropagation();
@@ -247,7 +259,10 @@ async function openZarcBundle({ buffer, bundleFilename, sizeBytes }) {
     createdAt: manifest.createdAt || '',
     sizeBytes,
     archives,
+    searchIndex: null,
   };
+  bundleSearchInput.value = '';
+  bundleSearchIndexTask = null;
   activeBundleEntryId = null;
 
   renderBundleSidebar();
@@ -741,6 +756,8 @@ function showDropError(msg) {
 function reset() {
   activeDownloadId = null;
   activeBundle = null;
+  bundleSearchInput.value = '';
+  bundleSearchIndexTask = null;
   activeBundleEntryId = null;
   requestedBundleEntryId = null;
   currentExportArchive = null;
@@ -782,6 +799,8 @@ function cleanup() {
 async function handleSidebarSecondaryAction() {
   if (activeBundle) {
     activeBundle = null;
+    bundleSearchInput.value = '';
+    bundleSearchIndexTask = null;
     activeBundleEntryId = null;
     requestedBundleEntryId = null;
     cleanup();
@@ -841,6 +860,7 @@ async function loadSidebarArchives() {
 function renderSidebarArchives() {
   sidebarSectionTitle.textContent = 'Downloaded archives';
   refreshSidebarBtn.textContent = 'Refresh';
+  bundleSearch.hidden = true;
   sidebarAccessNote.hidden = isSidebarFileAccessAllowed;
   sidebarEmpty.innerHTML = 'No downloaded <code>.webarchive</code> or <code>.zarc</code> files were found yet.';
   sidebarList.replaceChildren();
@@ -870,6 +890,7 @@ function renderBundleSidebar() {
 
   sidebarSectionTitle.textContent = 'Bundle tabs';
   refreshSidebarBtn.textContent = 'Show downloads';
+  bundleSearch.hidden = false;
   sidebarAccessNote.hidden = true;
   sidebarEmpty.innerHTML = 'This <code>.zarc</code> bundle does not contain any archived tabs.';
   sidebarError.hidden = true;
@@ -887,8 +908,28 @@ function renderBundleSidebar() {
       : `${activeBundle.archives.length} bundled archives inside ${activeBundle.title}.`;
   sidebarEmpty.hidden = true;
 
-  for (const archive of activeBundle.archives) {
-    sidebarList.appendChild(makeBundleEntryCard(archive));
+  const query = bundleSearchInput.value.trim();
+  const indexed = activeBundle.searchIndex;
+  const matchingArchives = query && indexed
+    ? activeBundle.archives.filter((archive) => bundleArchiveMatches(archive, query))
+    : activeBundle.archives;
+
+  if (query && !indexed) {
+    bundleSearchStatus.textContent = 'Indexing captured pages…';
+    ensureBundleSearchIndex();
+  } else if (query) {
+    bundleSearchStatus.textContent = `${matchingArchives.length} of ${activeBundle.archives.length} archived page${activeBundle.archives.length === 1 ? '' : 's'} matched.`;
+  } else {
+    bundleSearchStatus.textContent = 'Search titles, URLs, and captured page text.';
+  }
+
+  for (const archive of matchingArchives) {
+    sidebarList.appendChild(makeBundleEntryCard(archive, query));
+  }
+
+  if (query && indexed && matchingArchives.length === 0) {
+    sidebarEmpty.textContent = 'No pages in this .zarc match your search.';
+    sidebarEmpty.hidden = false;
   }
 
   updateSidebarSelection();
@@ -970,7 +1011,7 @@ function makeSidebarArchiveCard(item) {
   return card;
 }
 
-function makeBundleEntryCard(archive) {
+function makeBundleEntryCard(archive, query = '') {
   const card = document.createElement('article');
   card.className = 'sidebar-archive';
   card.dataset.entryId = archive.id;
@@ -996,7 +1037,7 @@ function makeBundleEntryCard(archive) {
 
   const title = document.createElement('div');
   title.className = 'sidebar-archive-title';
-  title.textContent = archive.pageTitle || archive.filename;
+  appendHighlightedText(title, archive.pageTitle || archive.filename, query);
 
   const meta = document.createElement('div');
   meta.className = 'sidebar-archive-meta';
@@ -1016,6 +1057,17 @@ function makeBundleEntryCard(archive) {
   status.textContent = 'Bundled archive';
 
   body.append(title, meta, path, status);
+
+  if (query) {
+    const match = activeBundle?.searchIndex?.get(archive.id);
+    const snippetText = makeBundleSearchSnippet(match?.text || '', query);
+    if (snippetText) {
+      const snippet = document.createElement('div');
+      snippet.className = 'bundle-search-snippet';
+      appendHighlightedText(snippet, snippetText, query);
+      body.append(snippet);
+    }
+  }
 
   if (archive.pageUrl) {
     const actions = document.createElement('div');
@@ -1037,6 +1089,99 @@ function makeBundleEntryCard(archive) {
 
   card.append(body);
   return card;
+}
+
+function scheduleBundleSearch() {
+  if (!activeBundle) return;
+  clearTimeout(bundleSearchTimer);
+  bundleSearchTimer = setTimeout(() => renderBundleSidebar(), 160);
+}
+
+async function ensureBundleSearchIndex() {
+  if (!activeBundle || activeBundle.searchIndex) return;
+  const bundle = activeBundle;
+  if (bundleSearchIndexTask?.bundle === bundle) return bundleSearchIndexTask.promise;
+  const promise = (async () => {
+    const index = new Map();
+    for (let position = 0; position < bundle.archives.length; position += 1) {
+      const archive = bundle.archives[position];
+      bundleSearchStatus.textContent = `Indexing page ${position + 1} of ${bundle.archives.length}…`;
+      index.set(archive.id, extractBundleSearchDocument(archive));
+      if (position % 4 === 3) await new Promise((resolve) => setTimeout(resolve, 0));
+    }
+    if (activeBundle === bundle) {
+      bundle.searchIndex = index;
+      renderBundleSidebar();
+    }
+  })().finally(() => {
+    if (bundleSearchIndexTask?.bundle === bundle) bundleSearchIndexTask = null;
+  });
+  bundleSearchIndexTask = { bundle, promise };
+  return promise;
+}
+
+function extractBundleSearchDocument(archive) {
+  try {
+    const plist = decodeBplist(archive.bytes);
+    const main = plist.WebMainResource;
+    if (!main || !(main.WebResourceData instanceof Uint8Array)) throw new Error('Missing page content');
+    let html;
+    try {
+      html = new TextDecoder(main.WebResourceTextEncodingName || 'UTF-8').decode(main.WebResourceData);
+    } catch (_) {
+      html = new TextDecoder('UTF-8').decode(main.WebResourceData);
+    }
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+    doc.querySelectorAll('script,style,noscript,template').forEach((node) => node.remove());
+    return {
+      title: archive.pageTitle || doc.title || archive.filename,
+      url: archive.pageUrl || main.WebResourceURL || '',
+      text: (doc.body?.innerText || doc.documentElement?.textContent || '').replace(/\s+/g, ' ').trim(),
+    };
+  } catch (_) {
+    return { title: archive.pageTitle || archive.filename, url: archive.pageUrl || '', text: '' };
+  }
+}
+
+function bundleArchiveMatches(archive, query) {
+  const doc = activeBundle?.searchIndex?.get(archive.id);
+  if (!doc) return false;
+  const terms = query.toLocaleLowerCase().split(/\s+/).filter(Boolean);
+  const searchable = [doc.title, doc.url, doc.text, archive.filename].filter(Boolean).join('\n').toLocaleLowerCase();
+  return terms.every((term) => searchable.includes(term));
+}
+
+function makeBundleSearchSnippet(text, query) {
+  const terms = query.toLocaleLowerCase().split(/\s+/).filter(Boolean);
+  const comparable = text.toLocaleLowerCase();
+  const indexes = terms.map((term) => comparable.indexOf(term)).filter((index) => index >= 0);
+  if (indexes.length === 0) return '';
+  const start = Math.max(0, Math.min(...indexes) - 70);
+  const end = Math.min(text.length, start + 230);
+  return `${start > 0 ? '…' : ''}${text.slice(start, end)}${end < text.length ? '…' : ''}`;
+}
+
+function appendHighlightedText(container, text, query) {
+  const terms = query.split(/\s+/).filter(Boolean).map(escapeSearchRegex).sort((a, b) => b.length - a.length);
+  if (terms.length === 0) {
+    container.textContent = text;
+    return;
+  }
+  const regex = new RegExp(terms.join('|'), 'gi');
+  let cursor = 0;
+  let match;
+  while ((match = regex.exec(text))) {
+    if (match.index > cursor) container.append(document.createTextNode(text.slice(cursor, match.index)));
+    const mark = document.createElement('mark');
+    mark.textContent = match[0];
+    container.append(mark);
+    cursor = match.index + match[0].length;
+  }
+  if (cursor < text.length) container.append(document.createTextNode(text.slice(cursor)));
+}
+
+function escapeSearchRegex(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
 function updateSidebarSelection() {

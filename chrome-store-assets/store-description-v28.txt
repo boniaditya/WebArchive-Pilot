@@ -1,0 +1,284 @@
+**Store Description**
+
+📦 **WebArchive Pilot** helps you save webpages as `.webarchive` files, bundle multiple saved pages into a tabbed archive, and reopen everything directly inside Chrome.
+
+Whether you are saving research, product pages, receipts, dashboards, support articles, documentation, learning material, reports, or important references, WebArchive Pilot gives you a practical way to keep a portable copy of a page after it has fully loaded in your browser.
+
+Instead of relying on bookmarks alone, broken offline saves, or pages that may change later, WebArchive Pilot helps you preserve what you actually saw in the browser.
+
+✨ **What makes WebArchive Pilot useful?**
+
+WebArchive Pilot is designed for people who want a clean, lightweight archive workflow inside Chrome.
+
+With WebArchive Pilot, you can:
+
+🔹 Save the current page as a `.webarchive` file  
+🔹 Save all open tabs in the current window into one bundled archive  
+🔹 Save only the tabs on the left of the active tab into one bundled archive  
+🔹 Save only the tabs on the right of the active tab into one bundled archive  
+🔹 Save pages from the right-click context menu  
+🔹 Open `.webarchive` files directly inside Chrome  
+🔹 Open bundled archive files directly inside Chrome  
+🔹 Reopen downloaded archives from a built-in archive library  
+🔹 Build one bundled archive from multiple previously downloaded `.webarchive` files  
+🔹 Browse bundled pages in a tabbed sidebar for quick switching  
+🔹 View archives created by Safari as well as archives created by this extension
+
+🧭 **Built for real everyday use**
+
+WebArchive Pilot is helpful when you want to:
+
+📚 Save research material for later  
+🛍 Archive product pages before prices, stock, or details change  
+🧾 Keep copies of receipts, invoices, and order confirmations  
+📰 Save articles, posts, and public pages that might be edited or removed  
+💼 Preserve business dashboards, reports, and internal references after they load  
+🧠 Collect learning resources and documentation in one place  
+🗂 Group many related pages into one bundled archive for easier organization
+
+🛠 **How it works**
+
+WebArchive Pilot uses Chrome’s built-in page capture capabilities to preserve the fully loaded page and package it as a `.webarchive` file. It also includes a built-in viewer that can decode and render saved archives directly in a Chrome tab, so you do not need Safari just to reopen them.
+
+For larger workflows, WebArchive Pilot also supports bundled tab archives, allowing multiple saved pages to be grouped into one portable archive file and previewed through a vertical tabbed interface inside the viewer. This is especially useful when you want to keep a full set of related pages together instead of managing many separate files one by one.
+
+🖥 **Built-in archive library**
+
+WebArchive Pilot includes a built-in archive library so you can:
+
+📂 See your downloaded archive files in one place  
+🔍 Reopen saved archives without digging through folders manually  
+🧷 Create bundled archives from files you already downloaded  
+🪟 Open archived pages in a dedicated viewer tab  
+📁 Jump to files from your archive list for quick access
+
+⚡ **Simple workflow**
+
+1. Open the page or group of tabs you want to save  
+2. Save a single page as `.webarchive` or save multiple tabs as one bundled archive  
+3. Reopen them later directly in Chrome
+
+🔐 **Designed to stay practical**
+
+WebArchive Pilot is focused on a direct browser-based workflow. It is meant to be useful right away, without forcing you into a complicated system or extra setup. It works especially well for people who frequently collect reference pages, compare multiple tabs, or want portable archives they can reopen later.
+
+💡 **Why users choose WebArchive Pilot**
+
+✅ Easy one-click saving  
+✅ Multi-tab archive bundling  
+✅ Built-in Chrome viewer  
+✅ Archive library for downloaded files  
+✅ Support for Safari-created `.webarchive` files  
+✅ Better organization for groups of related pages  
+✅ Useful for research, shopping, documentation, recordkeeping, and review workflows
+
+❓ **FAQ**
+
+❔ **What can I save with WebArchive Pilot?**  
+You can save many regular webpages, including articles, product pages, dashboards, documentation pages, and other content that has fully loaded in Chrome.
+
+❔ **Can I open `.webarchive` files in Chrome?**  
+Yes. WebArchive Pilot includes a built-in viewer that lets you open `.webarchive` files directly inside Chrome.
+
+❔ **Can I save multiple tabs together?**  
+Yes. You can save all tabs, the tabs on the left, or the tabs on the right into a bundled archive for easier organization.
+
+❔ **Can I reopen bundled archives later?**  
+Yes. Bundled archives can be opened in WebArchive Pilot’s viewer, where archived pages can be switched through a tabbed sidebar.
+
+❔ **Does this work with Safari `.webarchive` files?**  
+Yes. WebArchive Pilot is designed to view Safari-created `.webarchive` files as well as files created by the extension.
+
+❔ **Why would I use this instead of bookmarks?**  
+Bookmarks only point to the live page. WebArchive Pilot helps you keep a saved copy of what you saw at the time, which is useful when content changes later.
+
+❔ **Does it work for pages that require login?**  
+It can help preserve pages after they have loaded in your browser, which can be useful for authenticated or dynamically rendered content. However, replay behavior may vary depending on how the site works.
+
+❔ **Will every website replay perfectly later?**  
+Not always. Some highly interactive websites or pages that depend on live server responses may not replay exactly the same when reopened.
+
+❔ **Can Chrome internal pages be archived?**  
+No. Browser-internal pages such as `chrome://` pages cannot be archived by Chrome extensions.
+
+❔ **Do I need Safari to open these files?**  
+No. That is one of the main benefits of WebArchive Pilot. You can reopen supported archive files directly inside Chrome.
+
+📝 **Important notes**
+
+• Some websites may not replay exactly the same if they depend on live server data, advanced scripts, or real-time interactions.  
+• Browser-internal pages such as `chrome://` pages cannot be archived.  
+• Bundled archives are designed for use with WebArchive Pilot’s built-in viewer.  
+• Results depend on how the webpage loaded and what resources were available at capture time.
+
+🚀 **WebArchive Pilot is ideal for users who want a cleaner, faster, and more useful archive workflow inside Chrome.**  
+Save one page, save many tabs, reopen downloaded archives, and keep your important web content portable and organized.
+
+📋 **Major updates from version 2.0.0 to 10.0.0**
+
+WebArchive Pilot has grown from a simple `.webarchive` saver into a complete Chrome-based archive workspace. These updates add multi-tab bundling, archive browsing, exports, history, improved navigation, and more practical controls for managing saved pages.
+
+## Version 2.0.0: Tabbed archive bundles
+
+📦 Added support for creating and opening `.zarc` archive bundles.
+
+A `.zarc` bundle can contain multiple complete `.webarchive` files inside one portable archive. The bundle includes the actual saved archive content, not just links or references to files on your computer.
+
+🗂 Added a vertical tabbed bundle viewer.
+
+When you open a `.zarc` file, every archived page inside the bundle appears in a left-side tab list. Select a tab to load that saved webpage directly in the built-in viewer.
+
+⬅️ Added multi-tab saving options:
+
+• Save all open tabs in the current Chrome window into one `.zarc` bundle  
+• Save tabs to the left of the active tab into one `.zarc` bundle  
+• Save tabs to the right of the active tab into one `.zarc` bundle  
+• Save the current page as a normal standalone `.webarchive` file  
+
+🧩 Added downloaded-archive bundle creation.
+
+Select multiple downloaded `.webarchive` files in the archive library and package them into one tabbed `.zarc` bundle for easier storage and sharing.
+
+🔧 Improved `.zarc` decoding and bundle loading so embedded `.webarchive` entries can be opened reliably from the bundle sidebar.
+
+## Version 3.0.0: Archive library and viewer improvements
+
+📚 Added a dedicated archive-library experience for downloaded web archives.
+
+The archive library helps you browse, reopen, organize, and manage downloaded `.webarchive` and `.zarc` files without manually searching through folders every time.
+
+🖱 Added direct archive opening from archive cards.
+
+Click an archive card or use the View action to open the selected archive in WebArchive Pilot’s viewer.
+
+📁 Added “Show file” controls to reveal the archive in its local download folder.
+
+🗑 Added controls for removing an archive entry from the archive library.
+
+🔄 Added refresh actions so the downloaded archive list can be updated when new files are saved.
+
+## Version 4.0.0: Improved sidebar navigation
+
+🧭 Added an expandable and collapsible Archive Library sidebar.
+
+The sidebar gives quick access to saved archives while keeping the viewer workspace available for reading the selected webpage.
+
+↔️ Improved the collapsed sidebar layout.
+
+When collapsed, the sidebar shows only the relevant WebArchive Pilot and archive-library icons without text overflowing outside the narrow sidebar.
+
+🔙 Added clearer back navigation with a Back label and icon.
+
+🗂 Added an archive-library shortcut at the top of the sidebar for faster access to downloaded web archives.
+
+📌 Improved selected-item behavior so only the currently selected archive is expanded while other archive entries remain compact and easy to scan.
+
+## Version 5.0.0: Better archive cards and file management
+
+✨ Refined archive-card layouts for easier reading.
+
+Archive names, metadata, file locations, status labels, and actions are arranged more clearly for both large and small screens.
+
+✂️ Added truncation for long local file paths so archive cards remain clean instead of overflowing.
+
+🖱 Made archive entries easier to use by allowing the archive panel itself to open the selected archive in the viewer.
+
+📂 Improved local-file actions so users can reveal an archive in Finder or their downloads folder when Chrome allows it.
+
+🎨 Improved button layout, spacing, icons, and responsive behavior to avoid icon overflow and make better use of available space.
+
+## Version 6.0.0: Archive viewer reliability
+
+🛠 Improved support for Apple/Safari-created `.webarchive` files as well as files created by WebArchive Pilot.
+
+⚡ Added clearer loading states while archives are being read, decoded, mapped, and rendered.
+
+⏱ Added protection against file-reading hangs.
+
+If Chrome cannot read a local archive file, WebArchive Pilot now reports a helpful error instead of remaining on an endless loading screen.
+
+🧩 Improved decoding of embedded archive data and typed binary content used in bundled `.zarc` archives.
+
+📄 Improved handling of saved HTML, CSS, images, and other captured resources when opening an archive.
+
+## Version 7.0.0: Context-menu archive actions
+
+🖱 Expanded the right-click context menu.
+
+From a normal webpage, WebArchive Pilot can now provide actions to:
+
+• Save the current page as `.webarchive`  
+• Save all open tabs as one `.zarc` bundle  
+• Save tabs on the left as one `.zarc` bundle  
+• Save tabs on the right as one `.zarc` bundle  
+
+This makes it possible to archive groups of tabs without first opening the extension popup.
+
+## Version 8.0.0: Archive history
+
+🕘 Added archive-opening history.
+
+The archive library can now show files opened manually in the WebArchive Pilot viewer, not only files originally downloaded by the extension.
+
+This helps you keep track of `.webarchive` and `.zarc` files you have viewed from your computer.
+
+🧹 Added history-management controls so locally opened archive entries can be removed from the viewer history when they are no longer needed.
+
+🔍 Improved sorting and library merging so downloaded archives and manually opened archive history are easier to find in one place.
+
+## Version 9.0.0: Export options
+
+📤 Added direct export controls in the archive library and viewer.
+
+For compatible loaded `.webarchive` files, WebArchive Pilot can export:
+
+• 🖨 **PDF**: Opens Chrome’s print interface so you can choose “Save to PDF”  
+• ✉ **MHTML**: Creates a standard `.mhtml` web archive  
+• 🌐 **Single-file HTML**: Creates a standalone `.html` file using captured archive resources  
+• ≡ **Plain text**: Extracts readable archive text into a `.txt` file  
+• ⇩ **Original WebArchive**: Downloads the original `.webarchive` file  
+
+🧾 Improved export menus with icons, a clear export arrow, and dropdown actions.
+
+📐 Reworked archive-card actions into a compact two-column layout so View, Show file, Export, and Delete controls fit cleanly without wasting space.
+
+⚠️ PDF export uses Chrome’s native print dialog. The final PDF options, filename, and destination are selected through Chrome’s standard “Save to PDF” workflow.
+
+## Version 10.0.0: Current workflow and refinement
+
+🚀 WebArchive Pilot now provides an end-to-end archive workflow inside Chrome:
+
+1. Save one webpage as `.webarchive`  
+2. Save all tabs, left-side tabs, or right-side tabs as one `.zarc` bundle  
+3. Open standalone archives or tabbed bundles in Chrome  
+4. Browse bundled pages from a vertical sidebar  
+5. Reopen downloaded or previously opened archives from the library  
+6. Export compatible archives to PDF, MHTML, standalone HTML, text, or the original WebArchive format  
+
+🧠 The extension is designed for research, records, shopping comparisons, documentation, receipts, reports, reference material, and groups of pages that need to remain portable after the original website changes.
+
+🔐 WebArchive Pilot works locally in Chrome and focuses on a practical archive workflow without requiring a separate account, cloud service, or complex setup.
+
+❓ **Additional FAQ**
+
+❔ **What is a `.zarc` file?**  
+A `.zarc` file is a WebArchive Pilot bundle that stores multiple complete `.webarchive` files together. Open it in WebArchive Pilot to browse the included pages through a vertical tab interface.
+
+❔ **Does a `.zarc` bundle contain the actual webpages?**  
+Yes. The bundle stores embedded `.webarchive` files rather than references to files on your computer.
+
+❔ **Can I export every archive format?**  
+Export options are available for compatible `.webarchive` files that WebArchive Pilot can decode. `.zarc` bundles can be opened to access their contained web archives.
+
+❔ **Why might an archive fail to open?**  
+The source archive may be incomplete, damaged, unavailable on disk, unsupported, or contain resources that cannot be replayed offline. WebArchive Pilot shows an error instead of loading indefinitely when file access fails.
+
+❔ **Why might a saved webpage look different later?**  
+Some websites rely on live server data, login sessions, scripts, video players, or interactive services that cannot be fully reproduced offline. Archive results depend on what Chrome captured when the page was saved.
+
+❔ **Can I use the extension with Safari archives?**  
+Yes. WebArchive Pilot is designed to open many Safari-created `.webarchive` files as well as archives created by the extension itself.
+
+🆕 **Version 28 improvements**
+
+WebArchive Pilot now includes folders, advanced full-text search across standalone archives and pages inside `.zarc` bundles, plus exact embedded-page results with highlighted matches. Expand bundles in place, preview complete pages in a resizable split-screen workspace, and extract one or every contained `.webarchive` without leaving Archive History. Collapse the folder sidebar, keep remembered layout preferences, open large local bundles more reliably, and use library backup and restore controls to preserve history, folders, and assignments across reinstallations.

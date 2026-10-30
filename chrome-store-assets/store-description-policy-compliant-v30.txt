@@ -1,0 +1,27 @@
+WebArchive Pilot saves a loaded webpage as a portable .webarchive file and opens it again in the browser. It can also package several tabs into one .zarc bundle with a built-in tabbed viewer.
+
+Main features
+
+• Save the current tab, every tab in the window, or the tabs to the left or right of the active tab.
+• Choose separate .webarchive downloads or a single .zarc bundle for supported multi-tab actions.
+• Start a capture from the extension popup or the context menu.
+• Open compatible saved files created by the extension or Safari.
+• Organize downloaded and previously opened items into folders in Archive History.
+• Search titles, filenames, original URLs, folder names, and stored text, including entries inside a bundle.
+• Expand bundles in place, preview a contained item beside the list, and extract one entry or the complete set.
+• Export compatible content as PDF through the browser’s print dialog, MHTML, single-file HTML, plain text, or its original format.
+• Back up and restore library metadata, folder assignments, and opening history.
+
+How it works
+
+The extension uses Chrome’s built-in capture capability after the selected tab has loaded. It converts the available resources into the .webarchive format and downloads the result to your device. The viewer decodes supported local files and displays their stored HTML, styles, images, fonts, and other included resources in a sandboxed frame.
+
+A .zarc bundle contains complete saved content rather than shortcuts to files elsewhere on the computer. Its sidebar lets you switch between entries and search by title, URL, filename, or stored text.
+
+Local workflow and privacy
+
+Capture, conversion, viewing, organization, and search are performed locally on your device. Saved webpage content is not sent to a dedicated server. The optional feature-request form transmits only the information and image that the user chooses to submit.
+
+Important limitations
+
+The browser does not allow extensions to save internal addresses such as chrome:// URLs. A stored site may look or behave differently when reopened if it depends on a live login session, server response, streaming media, service worker, or resource that was unavailable at the time.

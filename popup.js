@@ -8,6 +8,7 @@
 const saveBtn          = document.getElementById('saveBtn');
 const openBtn          = document.getElementById('openBtn');
 const downloadsBtn     = document.getElementById('downloadsBtn');
+const featureRequestBtn= document.getElementById('featureRequestBtn');
 const progressWrap     = document.getElementById('progressWrap');
 const progressFill     = document.getElementById('progressFill');
 const statusText       = document.getElementById('statusText');
@@ -18,6 +19,8 @@ const errorCard        = document.getElementById('errorCard');
 const saveAllBtn       = document.getElementById('saveAllBtn');
 const saveLeftBtn      = document.getElementById('saveLeftBtn');
 const saveRightBtn     = document.getElementById('saveRightBtn');
+const saveLeftIndividualBtn = document.getElementById('saveLeftIndividualBtn');
+const saveRightIndividualBtn = document.getElementById('saveRightIndividualBtn');
 const allTabsProgress  = document.getElementById('allTabsProgress');
 const allTabsFill      = document.getElementById('allTabsFill');
 const allTabsStatus    = document.getElementById('allTabsStatus');
@@ -28,6 +31,8 @@ saveBtn.addEventListener('click', startArchive);
 saveAllBtn.addEventListener('click', () => startArchiveAllTabs('all'));
 saveLeftBtn.addEventListener('click',  () => startArchiveAllTabs('left'));
 saveRightBtn.addEventListener('click', () => startArchiveAllTabs('right'));
+saveLeftIndividualBtn.addEventListener('click', () => startArchiveAllTabs('left', 'individual'));
+saveRightIndividualBtn.addEventListener('click', () => startArchiveAllTabs('right', 'individual'));
 
 // Open the viewer in a new tab and close the popup
 openBtn.addEventListener('click', () => {
@@ -37,6 +42,14 @@ openBtn.addEventListener('click', () => {
 
 downloadsBtn.addEventListener('click', () => {
   chrome.tabs.create({ url: chrome.runtime.getURL('downloads.html') });
+  window.close();
+});
+
+featureRequestBtn.addEventListener('click', async () => {
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  const params = new URLSearchParams();
+  if (/^https?:/i.test(tab?.url || '')) params.set('sourceUrl', tab.url);
+  chrome.tabs.create({ url: chrome.runtime.getURL(`feature-request.html?${params}`) });
   window.close();
 });
 
@@ -99,11 +112,13 @@ async function startArchive() {
   port.postMessage({ action: 'start', tabId });
 }
 
-async function startArchiveAllTabs(direction = 'all') {
+async function startArchiveAllTabs(direction = 'all', mode = 'bundle') {
   saveBtn.disabled       = true;
   saveAllBtn.disabled    = true;
   saveLeftBtn.disabled   = true;
   saveRightBtn.disabled  = true;
+  saveLeftIndividualBtn.disabled = true;
+  saveRightIndividualBtn.disabled = true;
   allTabsSummary.style.display  = 'none';
   allTabsProgress.style.display = 'block';
   allTabsFill.style.width = '0%';
@@ -132,6 +147,8 @@ async function startArchiveAllTabs(direction = 'all') {
         saveAllBtn.disabled    = false;
         saveLeftBtn.disabled   = false;
         saveRightBtn.disabled  = false;
+        saveLeftIndividualBtn.disabled = false;
+        saveRightIndividualBtn.disabled = false;
         break;
       case 'all-error':
         allTabsStatus.textContent = '⚠ ' + msg.message;
@@ -139,6 +156,8 @@ async function startArchiveAllTabs(direction = 'all') {
         saveAllBtn.disabled    = false;
         saveLeftBtn.disabled   = false;
         saveRightBtn.disabled  = false;
+        saveLeftIndividualBtn.disabled = false;
+        saveRightIndividualBtn.disabled = false;
         break;
     }
   });
@@ -150,10 +169,12 @@ async function startArchiveAllTabs(direction = 'all') {
       saveAllBtn.disabled    = false;
       saveLeftBtn.disabled   = false;
       saveRightBtn.disabled  = false;
+      saveLeftIndividualBtn.disabled = false;
+      saveRightIndividualBtn.disabled = false;
     }
   });
 
-  port.postMessage({ action: 'start-all', direction });
+  port.postMessage({ action: 'start-all', direction, mode });
 }
 
 function setProgress(pct, text) {

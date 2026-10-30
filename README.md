@@ -36,6 +36,7 @@ The project also ships with a built-in viewer so Chrome can open `.webarchive` f
 - Show system notifications for background saves and bulk saves.
 - Open `.webarchive` files created by Safari or by this extension.
 - Render archived HTML, CSS, images, fonts, scripts, and other captured resources inside a sandboxed viewer.
+- Bulk convert downloaded or locally selected `.webarchive` files into separate MHTML, HTML, or text files; prepare PDFs one at a time through Chrome's print dialog.
 - Run entirely client-side with no backend, build pipeline, or external service.
 
 ## How Saving Works
@@ -109,9 +110,39 @@ The extension will skip browser-internal tabs that cannot be archived.
 After installation, right-click on a page and use:
 
 - **Save as .webarchive**
-- **Save all open tabs as .webarchive**
+- **Save all open tabs as one .zarc bundle**
 
 These flows report completion through Chrome notifications.
+
+The popup also provides separate controls to save the tabs on the left or right either as one `.zarc` bundle or as individual `.webarchive` files.
+
+### Organize archives into folders
+
+Open **View downloaded archives** to create folders for downloaded or locally opened `.webarchive` and `.zarc` files. Move an archive with its folder selector or drag it onto a folder in the left pane. Folder organization is stored locally in the extension; the original files remain in Chrome's Downloads location.
+
+### Bulk convert archives
+
+Open **Archive History → Bulk convert**. Select downloaded `.webarchive` files, or choose multiple older files from your device. Pick MHTML, standalone HTML, or plain text to download one converted file per archive into `Downloads/WebArchive Pilot Converted`. The converter reports each success or failure and can stop after the current file. For PDF, Chrome opens its Save to PDF print dialog for each archive; save the current PDF before choosing **Prepare next PDF**. Locally opened files must be chosen again because Chrome does not retain their file access after the viewer closes.
+
+### Search saved archives
+
+Archive History includes advanced search for titles, filenames, original URLs, folders, dates, sizes, and archive types. Choose **Index archive text** to search the captured text inside downloaded `.webarchive` files and every page stored in `.zarc` bundles. Search supports all words, any word, exact phrases, regular expressions, case sensitivity, and multiple result sort orders.
+
+When a search matches content inside a `.zarc` bundle, Archive History lists the exact embedded `.webarchive` file. Select that result to open a right-side panel containing the matching captured lines with the search terms highlighted.
+
+Entering an Archive History query automatically indexes downloaded `.zarc` bundles when needed, so results from their embedded pages appear without first opening Advanced options or manually starting the text index.
+
+`.zarc` cards can be expanded directly inside Archive History to list their individual `.webarchive` entries. Extract one entry or all entries without navigating away; extracted files keep their captured page metadata and folder organization.
+
+Use the **+** control before a `.zarc` bundle title to reveal its embedded archive files. The control changes to **−** while the bundle is expanded.
+
+Select any expanded bundle entry, its **Preview** button, or an exact `.zarc` search result to render the complete archived page in the right half of Archive History. Search results and the archive list stay visible in the left half, while the preview includes captured styles and resources and provides an extraction action without opening another page.
+
+Collapse the folder sidebar with its arrow control when more room is needed. Drag the divider at the preview's left edge to resize the archive list and page preview; both layout preferences are remembered locally.
+
+WebArchive Pilot keeps library data across normal extension upgrades. It records the known backup download ID and resolved path in Chrome's internal extension storage and reuses that backup while the file is still available. A JSON backup is created in the local `Downloads/WebArchive Pilot` folder only when no previous backup can be found; opening archives or revisiting Archive History does not create repeated backup downloads. Use **Back up library** for an updated manual copy and **Restore backup** after reinstalling if automatic restoration is unavailable. Archive files remain separate local `.webarchive` and `.zarc` files.
+
+When a `.zarc` bundle is open in the viewer, use **Search this .zarc** above its tab list to search that bundle by page title, URL, filename, or captured page text. Matching archived pages remain in the sidebar with highlighted titles and text snippets, and open in the same viewer when selected.
 
 ### Open a `.webarchive` file
 
